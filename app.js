@@ -636,7 +636,7 @@
       info.appendChild(viToggle); info.appendChild(viBox);
     }
     top.appendChild(img); top.appendChild(info); body.appendChild(top);
-    var psBlock = priceBlock(c); if (psBlock) body.appendChild(psBlock);
+    // Giá tham khảo trung bình đã xóa — chỉ dùng giá TCG Republic trên từng foil row
     // Lịch sử giá: ghi giá đại diện theo ngày, vẽ biểu đồ xu hướng khi có >=2 mốc
     (function () {
       var priceInfo = avgPrice(c);
@@ -667,9 +667,78 @@
         row.appendChild(left); row.appendChild(price); row.appendChild(add); return row;
       }
       if (exact.length) {
-        // mã TCG có trong dữ liệu: nếu mã đó phát hành nhiều foil thì liệt kê đúng các foil của mã đó
-        body.appendChild(el("div", "sec-title", exact.length > 1 ? ("Mã " + qcode + " — " + exact.length + " loại foil của mã này, chọn loại bạn có") : ("Mã " + qcode + " — bấm + để thêm")));
+        // mã TCG có trong dữ liệu: liệt kê foil + thử lấy giá TCG Republic
+        var enTitle = el("div", "sec-title", exact.length > 1 ? ("Mã " + qcode + " — " + exact.length + " loại foil của mã này, chọn loại bạn có") : ("Mã " + qcode + " — bấm + để thêm"));
+        body.appendChild(enTitle);
         var elist = el("div", "sets"); exact.forEach(function (s) { elist.appendChild(foilRow(s)); }); body.appendChild(elist);
+        var enNote = el("p", "note"); enNote.innerHTML = '<span class="spin"></span> Đang tra giá TCG Republic…'; body.appendChild(enNote);
+        tcgRepublicSearch(qcode).then(function (repMap) {
+          if (!Object.keys(repMap).length) { enNote.textContent = ""; return; }
+          // Có giá TCG Republic — rebuild list với giá
+          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
+          function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
+          function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
+          function matchRepPrice(rarity) {
+            if (!rarity) return null;
+            var rup = rarity.toUpperCase(), brup = baseRarity(rarity);
+            for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
+            var baseHit = null, baseHitLen = 9999;
+            for (var k2 in repMap) { if (baseRarity(k2) === brup && k2.length < baseHitLen) { baseHit = repMap[k2]; baseHitLen = k2.length; } }
+            if (baseHit) return baseHit;
+            var best = null, bestLen = 0;
+            for (var k3 in repMap) { var bk = baseRarity(k3); if (bk.indexOf(brup) >= 0 || brup.indexOf(bk) >= 0) { if (bk.length > bestLen) { best = repMap[k3]; bestLen = bk.length; } } }
+            if (best) return best;
+            var alias = RARITY_ALIAS[brup];
+            if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
+            return null;
+          }
+          elist.innerHTML = "";
+          var matchedRepKeys = {};
+          exact.forEach(function (s) {
+            var rep = matchRepPrice(s.set_rarity);
+            if (rep && rep.label) matchedRepKeys[rep.label] = true;
+            var row = el("div", "set-row match");
+            var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
+            left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
+            var priceDiv;
+            if (rep && rep.price > 0) {
+              priceDiv = el("div", "price tnum");
+              var pa = el("a"); pa.href = rep.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+              pa.textContent = "$" + rep.price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "TCG Republic";
+              priceDiv.appendChild(pa);
+            } else {
+              priceDiv = el("div", "price tnum", priceText(s.set_price));
+            }
+            var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
+            add.addEventListener("click", (function (ss, rp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: rp && rp.price > 0 ? rp.price : (ss.set_price || 0) }, imgId); }; })(s, rep));
+            row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
+          });
+          // Thêm foil chỉ có trên TCG Republic mà YGOPRODECK không liệt kê
+          Object.keys(repMap).forEach(function (rk) {
+            if (!matchedRepKeys[repMap[rk].label]) {
+              var row = el("div", "set-row match");
+              var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); sc.appendChild(rarChip(repMap[rk].label));
+              left.appendChild(sc);
+              var priceDiv = el("div", "price tnum");
+              if (repMap[rk].price > 0) {
+                var pa = el("a"); pa.href = repMap[rk].url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+                pa.textContent = "$" + repMap[rk].price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "TCG Republic";
+                priceDiv.appendChild(pa);
+              } else if (repMap[rk].url) {
+                var pa2 = el("a"); pa2.href = repMap[rk].url; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+                pa2.textContent = "Xem giá"; pa2.style.cssText = "color:var(--accent);font-size:12px";
+                priceDiv.appendChild(pa2);
+              } else { priceDiv.textContent = "—"; }
+              var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
+              add.addEventListener("click", (function (rk2) { return function () { openAddSheet(c, { set_code: qcode, set_name: "", set_rarity: repMap[rk2].label, set_price: repMap[rk2].price || 0 }, imgId); }; })(rk));
+              row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
+            }
+          });
+          var totalRows = elist.querySelectorAll(".set-row").length;
+          enTitle.textContent = totalRows > 1 ? ("Mã " + qcode + " — " + totalRows + " loại foil, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
+          var hasRepPrice = Object.keys(repMap).some(function (k) { return repMap[k].price > 0; });
+          enNote.innerHTML = hasRepPrice ? "Giá từ <b>TCG Republic</b> (USD). Bấm giá để xem chi tiết." : "";
+        });
       } else {
         // mã Nhật/ngôn ngữ khác: mỗi loại foil của mã đó là 1 dòng riêng để thêm đúng loại bạn có
         var titleEl = el("div", "sec-title", "Mã " + qcode + " — bấm + để thêm"); body.appendChild(titleEl);
