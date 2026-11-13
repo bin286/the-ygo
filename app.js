@@ -735,11 +735,20 @@
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); return row;
           }
           if (info && info.rarities.length) {
+            var matchedRepKeys = {};
             info.rarities.forEach(function (rr) {
               var rep = matchRepPrice(rr);
+              if (rep && rep.label) matchedRepKeys[rep.label] = true;
               listWrap.appendChild(foilRowWithPrice({ set_code: qcode, set_name: info.setName || "", set_rarity: rr, set_price: 0 }, rep));
             });
-            titleEl.textContent = info.rarities.length > 1 ? ("Mã " + qcode + " — " + info.rarities.length + " loại foil, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
+            // Thêm foil từ TCG Republic mà Yugipedia không có (VD: Over Flame Ver.)
+            Object.keys(repMap).forEach(function (rk) {
+              if (!matchedRepKeys[repMap[rk].label]) {
+                listWrap.appendChild(foilRowWithPrice({ set_code: qcode, set_name: info.setName || "", set_rarity: repMap[rk].label, set_price: 0 }, repMap[rk]));
+              }
+            });
+            var totalRows = listWrap.querySelectorAll(".set-row").length;
+            titleEl.textContent = totalRows > 1 ? ("Mã " + qcode + " — " + totalRows + " loại foil, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
             var hasPrice = Object.keys(repMap).some(function (k) { return repMap[k].price > 0; });
             jnote.innerHTML = (info.setName ? escapeHtml(info.setName) + ". " : "") + (hasPrice ? "Giá tham khảo từ <b>TCG Republic</b> (USD). Bấm giá để xem chi tiết." : "Chưa có giá trên TCG Republic cho bản này.");
           } else {
