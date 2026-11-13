@@ -682,14 +682,22 @@
           var info = results[0], repMap = results[1] || {};
           listWrap.innerHTML = "";
           // Hàm khớp rarity từ Yugipedia với key TCG Republic
+          function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
           function matchRepPrice(rarity) {
             if (!rarity) return null;
             var rup = rarity.toUpperCase();
+            // exact match
             for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
-            // thử khớp mờ: "Secret Rare" vs "Secret", "Ultra Rare" vs "Ultra"
+            // substring match: "Secret Rare" vs "Secret", "Ultra Rare" vs "Ultra"
             for (var k2 in repMap) {
               var kup = k2.toUpperCase();
               if (kup.indexOf(rup) >= 0 || rup.indexOf(kup) >= 0) return repMap[k2];
+            }
+            // normalized match: strip 's, "Rare", spaces -> "COLLECTOR" vs "COLLECTORS"
+            var nrup = normRarity(rarity);
+            for (var k3 in repMap) {
+              var nkup = normRarity(k3);
+              if (nkup.indexOf(nrup) >= 0 || nrup.indexOf(nkup) >= 0) return repMap[k3];
             }
             return null;
           }
