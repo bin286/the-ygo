@@ -525,17 +525,21 @@
 
   function addStat(c, k, v) { if (v == null || v === "") return; var s = el("span"); s.innerHTML = escapeHtml(k) + ": <b>" + escapeHtml(String(v)) + "</b>"; c.appendChild(s); }
   function priceText(p) { var n = Number(p); return n > 0 ? money(n) : "—"; }
-  // Giá tham khảo theo lá từ nhiều sàn uy tín (dữ liệu YGOPRODeck), ghi rõ nguồn
-  function priceSources(c) {
+  // Giá trung bình từ nhiều nguồn (chỉ USD), hiển thị 1 dòng duy nhất
+  function avgPrice(c) {
     var cp = c.card_prices && c.card_prices[0]; if (!cp) return null;
-    var items = [["TCGplayer", cp.tcgplayer_price, "$"], ["Cardmarket", cp.cardmarket_price, "€"], ["eBay", cp.ebay_price, "$"], ["Amazon", cp.amazon_price, "$"], ["CoolStuffInc", cp.coolstuffinc_price, "$"]].filter(function (x) { return Number(x[1]) > 0; });
-    if (!items.length) return null;
+    var vals = [cp.tcgplayer_price, cp.ebay_price, cp.amazon_price, cp.coolstuffinc_price].map(Number).filter(function (n) { return n > 0; });
+    if (!vals.length) return null;
+    var avg = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+    return { avg: avg, count: vals.length };
+  }
+  function priceBlock(c) {
+    var info = avgPrice(c); if (!info) return null;
     var wrap = el("div");
-    wrap.appendChild(el("div", "sec-title", "Giá tham khảo theo lá (nhiều nguồn)"));
-    var grid = el("div"); grid.style.cssText = "display:flex;flex-wrap:wrap;gap:6px";
-    items.forEach(function (x) { var chip = el("span", "tag"); chip.style.cssText = "font-size:12px;padding:4px 9px"; chip.textContent = x[0] + ": " + x[2] + Number(x[1]).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); grid.appendChild(chip); });
-    wrap.appendChild(grid);
-    wrap.appendChild(el("p", "note", "Nguồn: TCGplayer · Cardmarket · eBay · Amazon · CoolStuffInc (tổng hợp qua YGOPRODeck). Giá theo lá, chỉ tham khảo."));
+    var chip = el("span", "tag"); chip.style.cssText = "font-size:14px;padding:6px 14px;font-weight:600";
+    chip.textContent = "Giá tham khảo: " + money(info.avg);
+    wrap.appendChild(chip);
+    wrap.appendChild(el("p", "note", "Trung bình " + info.count + " nguồn (TCGplayer, eBay, Amazon, CoolStuffInc)."));
     return wrap;
   }
   // TCG Republic: tìm giá bản Nhật theo mã, trả về {rarity: {price, url, label}}
@@ -632,11 +636,11 @@
       info.appendChild(viToggle); info.appendChild(viBox);
     }
     top.appendChild(img); top.appendChild(info); body.appendChild(top);
-    var psBlock = priceSources(c); if (psBlock) body.appendChild(psBlock);
+    var psBlock = priceBlock(c); if (psBlock) body.appendChild(psBlock);
     // Lịch sử giá: ghi giá đại diện theo ngày, vẽ biểu đồ xu hướng khi có >=2 mốc
     (function () {
-      var cp = c.card_prices && c.card_prices[0]; if (!cp) return;
-      var rep = Number(cp.tcgplayer_price) || Number(cp.cardmarket_price) || Number(cp.ebay_price) || 0;
+      var priceInfo = avgPrice(c);
+      var rep = priceInfo ? priceInfo.avg : 0;
       Learn.logPrice(c.id, rep);
       var hist = Learn.priceHistory(c.id);
       if (hist.length >= 2) {
@@ -645,7 +649,7 @@
         var head = el("div", "sec-title", "Xu hướng giá (tự ghi, " + hist.length + " mốc)");
         box.appendChild(head); box.appendChild(sparkline(hist));
         var sign = pct > 0 ? "▲ +" : (pct < 0 ? "▼ " : "• ");
-        box.appendChild(el("p", "note", sign + pct.toFixed(1) + "% từ " + hist[0].d + " (" + money(first) + ") → " + hist[hist.length - 1].d + " (" + money(last) + "). Nguồn TCGplayer; app tự tích luỹ theo ngày khi bạn mở thẻ."));
+        box.appendChild(el("p", "note", sign + pct.toFixed(1) + "% từ " + hist[0].d + " (" + money(first) + ") → " + hist[hist.length - 1].d + " (" + money(last) + "). Trung bình nhiều nguồn; app tự tích luỹ theo ngày khi bạn mở thẻ."));
         body.appendChild(box);
       }
     })();
