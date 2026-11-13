@@ -15,7 +15,7 @@
   var JA_IDX = YGORES + "/idx/card/name/ja";
   var YUGI = "https://yugipedia.com/api.php";
   var TCGREP_SEARCH = "https://tcgrepublic.com/product/text_search.html";
-  var TCGREP_PROXY = "https://ygo-proxy.tranducdung286.workers.dev/?url=";
+  var TCGREP_PROXY = "https://script.google.com/macros/s/AKfycbyiYykyuf8lXo4cWdzwtsX0TXMRA24NX0swfT5fF4ZEAn6WEsAzcxzUTtjvXTZDygC2/exec?url=";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var SB_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.74.0/dist/umd/supabase.min.js";
 
@@ -572,7 +572,7 @@
   }
   function tcgRepublicSearch(code) {
     var target = TCGREP_SEARCH + "?q=" + encodeURIComponent(code) + "&Category=34";
-    return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(target), 10000)
+    return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(target), 15000)
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
