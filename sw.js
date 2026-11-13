@@ -2,7 +2,7 @@
    - Shell (cùng origin): cache-first.
    - API ygoprodeck + ảnh thẻ: network-first, có cache ảnh dự phòng.
    - Thư viện CDN (supabase, tesseract): stale-while-revalidate. */
-var CACHE = "ygo-pwa-v22";
+var CACHE = "ygo-pwa-v23";
 var SHELL = [
   "./", "./index.html", "./app.js", "./config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png"
@@ -26,8 +26,8 @@ self.addEventListener("fetch", function (e) {
   // API dữ liệu thẻ: luôn lấy mới, không cache (giá/rarity thay đổi)
   if (url.hostname === "db.ygoprodeck.com") { e.respondWith(fetch(req).catch(function () { return new Response('{"data":[]}', { headers: { "Content-Type": "application/json" } }); })); return; }
 
-  // TCG Republic via allorigins proxy: luôn lấy mới (giá thay đổi)
-  if (url.hostname === "api.allorigins.win") { e.respondWith(fetch(req).catch(function () { return new Response('{}', { headers: { "Content-Type": "application/json" } }); })); return; }
+  // TCG Republic via Cloudflare Worker proxy: luôn lấy mới (giá thay đổi)
+  if (url.hostname === "ygo-proxy.tranducdung286.workers.dev") { e.respondWith(fetch(req).catch(function () { return new Response('{}', { headers: { "Content-Type": "application/json" } }); })); return; }
 
   // Yugipedia (mã bộ -> tên): network-first, có cache dự phòng khi mất mạng
   if (url.hostname === "yugipedia.com") {

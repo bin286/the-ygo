@@ -15,10 +15,7 @@
   var JA_IDX = YGORES + "/idx/card/name/ja";
   var YUGI = "https://yugipedia.com/api.php";
   var TCGREP_SEARCH = "https://tcgrepublic.com/product/text_search.html";
-  var TCGREP_PROXIES = [
-    { url: "https://api.allorigins.win/get?url=", json: true },
-    { url: "https://api.allorigins.win/raw?url=", json: false }
-  ];
+  var TCGREP_PROXY = "https://ygo-proxy.tranducdung286.workers.dev/?url=";
   var TESS_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
   var SB_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.74.0/dist/umd/supabase.min.js";
 
@@ -571,25 +568,19 @@
   }
   function tcgRepublicSearch(code) {
     var target = TCGREP_SEARCH + "?q=" + encodeURIComponent(code) + "&Category=34";
-    // Thử lần lượt các CORS proxy, timeout 8s mỗi cái
-    function tryProxy(i) {
-      if (i >= TCGREP_PROXIES.length) return Promise.resolve({});
-      var p = TCGREP_PROXIES[i];
-      return fetchWithTimeout(p.url + encodeURIComponent(target), 8000)
-        .then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return p.json ? r.json() : r.text();
-        })
-        .then(function (data) {
-          var html = p.json ? (data && data.contents ? data.contents : "") : (typeof data === "string" ? data : "");
-          if (!html || html.length < 500) throw new Error("empty");
-          var map = tcgRepublicParse(html, code);
-          if (!Object.keys(map).length) throw new Error("no results");
-          return map;
-        })
-        .catch(function () { return tryProxy(i + 1); });
-    }
-    return tryProxy(0);
+    return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(target), 10000)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var html = data && data.contents ? data.contents : "";
+        if (!html || html.length < 500) throw new Error("empty");
+        var map = tcgRepublicParse(html, code);
+        if (!Object.keys(map).length) throw new Error("no results");
+        return map;
+      })
+      .catch(function () { return {}; });
   }
 
   function jpPriceLinks(code) {
