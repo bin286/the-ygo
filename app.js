@@ -682,7 +682,8 @@
           var info = results[0], repMap = results[1] || {};
           listWrap.innerHTML = "";
           // Hàm khớp rarity từ Yugipedia với key TCG Republic
-          function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
+          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
+          function normRarity(s) { return s.toUpperCase().replace(/['’]/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
           function matchRepPrice(rarity) {
             if (!rarity) return null;
             var rup = rarity.toUpperCase();
@@ -699,6 +700,9 @@
               var nkup = normRarity(k3);
               if (nkup.indexOf(nrup) >= 0 || nrup.indexOf(nkup) >= 0) return repMap[k3];
             }
+            // alias match: Common <-> Normal
+            var alias = RARITY_ALIAS[nrup];
+            if (alias) { for (var k4 in repMap) { if (normRarity(k4).indexOf(alias) >= 0) return repMap[k4]; } }
             return null;
           }
           function foilRowWithPrice(s, repInfo) {
