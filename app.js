@@ -1000,5 +1000,22 @@
     showTab(tab);
     if (tab === "p-search" && lq && lq.q) doSearch(lq.q);
   })();
-  if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        // Kiểm tra cập nhật mỗi 60s
+        setInterval(function () { reg.update(); }, 60000);
+        // Khi có SW mới sẵn sàng, tự động reload để dùng bản mới
+        reg.addEventListener("updatefound", function () {
+          var nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener("statechange", function () {
+            if (nw.state === "activated" && navigator.serviceWorker.controller) {
+              window.location.reload();
+            }
+          });
+        });
+      }).catch(function () {});
+    });
+  }
 })();
