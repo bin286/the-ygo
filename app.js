@@ -684,25 +684,29 @@
           // Hàm khớp rarity từ Yugipedia với key TCG Republic
           var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
           function normRarity(s) { return s.toUpperCase().replace(/['’]/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
+          function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
           function matchRepPrice(rarity) {
             if (!rarity) return null;
             var rup = rarity.toUpperCase();
-            // exact match
+            var brup = baseRarity(rarity);
+            // 1) exact match on original
             for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
-            // substring match: "Secret Rare" vs "Secret", "Ultra Rare" vs "Ultra"
-            for (var k2 in repMap) {
-              var kup = k2.toUpperCase();
-              if (kup.indexOf(rup) >= 0 || rup.indexOf(kup) >= 0) return repMap[k2];
-            }
-            // normalized match: strip 's, "Rare", spaces -> "COLLECTOR" vs "COLLECTORS"
-            var nrup = normRarity(rarity);
+            // 2) exact match on base: "Secret" == "Secret"; nếu nhiều key cùng base, chọn key ngắn nhất (bản thường, ko có ngoặc)
+            var baseHit = null, baseHitLen = 9999;
+            for (var k2 in repMap) { if (baseRarity(k2) === brup && k2.length < baseHitLen) { baseHit = repMap[k2]; baseHitLen = k2.length; } }
+            if (baseHit) return baseHit;
+            // 3) substring on base, longest base key wins (most specific)
+            var best = null, bestLen = 0;
             for (var k3 in repMap) {
-              var nkup = normRarity(k3);
-              if (nkup.indexOf(nrup) >= 0 || nrup.indexOf(nkup) >= 0) return repMap[k3];
+              var bk = baseRarity(k3);
+              if (bk.indexOf(brup) >= 0 || brup.indexOf(bk) >= 0) {
+                if (bk.length > bestLen) { best = repMap[k3]; bestLen = bk.length; }
+              }
             }
-            // alias match: Common <-> Normal
-            var alias = RARITY_ALIAS[nrup];
-            if (alias) { for (var k4 in repMap) { if (normRarity(k4).indexOf(alias) >= 0) return repMap[k4]; } }
+            if (best) return best;
+            // 4) alias: Common <-> Normal
+            var alias = RARITY_ALIAS[brup];
+            if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
             return null;
           }
           function foilRowWithPrice(s, repInfo) {
