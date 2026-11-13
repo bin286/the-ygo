@@ -748,7 +748,7 @@
               priceDiv = el("div", "price tnum", priceText(s.set_price));
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-            add.addEventListener("click", (function (ss, rp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: rp && rp.price > 0 ? rp.price : (ss.set_price || 0) }, imgId); }; })(s, rep));
+            add.addEventListener("click", (function (ss, rp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: rp && rp.price > 0 ? rp.price : (ss.set_price || 0) }, imgId, rp && rp.thumb ? rp.thumb : null); }; })(s, rep));
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
           });
           // Thêm foil chỉ có trên TCG Republic mà YGOPRODECK không liệt kê
@@ -775,7 +775,7 @@
                 priceDiv.appendChild(pa2);
               } else { priceDiv.textContent = "—"; }
               var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-              add.addEventListener("click", (function (rk2) { return function () { openAddSheet(c, { set_code: qcode, set_name: "", set_rarity: repMap[rk2].label, set_price: repMap[rk2].price || 0 }, imgId); }; })(rk));
+              add.addEventListener("click", (function (rk2) { return function () { openAddSheet(c, { set_code: qcode, set_name: "", set_rarity: repMap[rk2].label, set_price: repMap[rk2].price || 0 }, imgId, repMap[rk2].thumb || null); }; })(rk));
               row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
             }
           });
@@ -856,7 +856,7 @@
               priceDiv = el("div", "price tnum", "—");
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-            add.addEventListener("click", (function (ss, rp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: rp && rp.price > 0 ? rp.price : 0 }, imgId); }; })(s, repInfo));
+            add.addEventListener("click", (function (ss, rp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: rp && rp.price > 0 ? rp.price : 0 }, imgId, rp && rp.thumb ? rp.thumb : null); }; })(s, repInfo));
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); return row;
           }
           if (info && info.rarities.length) {
@@ -934,9 +934,9 @@
   function condSeg(sel) { var wrap = el("div", "cond-seg"), st = { c: sel || "NM" }; CONDS.forEach(function (cd) { var b = el("button"); b.setAttribute("aria-pressed", cd.c === st.c ? "true" : "false"); b.innerHTML = cd.c + "<small>×" + cd.f.toFixed(2) + "</small>"; b.addEventListener("click", function () { st.c = cd.c; Array.prototype.forEach.call(wrap.children, function (x) { x.setAttribute("aria-pressed", "false"); }); b.setAttribute("aria-pressed", "true"); wrap._onchange && wrap._onchange(); }); wrap.appendChild(b); }); wrap.get = function () { return st.c; }; return wrap; }
   function langSelect(sel) { var s = el("select", "lang-sel"); LANGS.forEach(function (l) { var o = el("option", null, l.name); o.value = l.c; if (l.c === (sel || "EN")) o.selected = true; s.appendChild(o); }); return s; }
   function qtyStepper(init) { var wrap = el("div", "qty-stepper"), st = { q: Math.max(1, init || 1) }; var mi = el("button", "qb", "−"), val = el("span", "qv tnum", String(st.q)), pl = el("button", "qb", "+"); mi.addEventListener("click", function () { if (st.q > 1) { st.q--; val.textContent = st.q; wrap._onchange && wrap._onchange(); } }); pl.addEventListener("click", function () { st.q++; val.textContent = st.q; wrap._onchange && wrap._onchange(); }); wrap.appendChild(mi); wrap.appendChild(val); wrap.appendChild(pl); wrap.get = function () { return st.q; }; return wrap; }
-  function openAddSheet(card, set, imgId) {
+  function openAddSheet(card, set, imgId, thumb) {
     var sheet = buildSheet(); var base = Number(set.set_price) || 0;
-    var head = el("div", "sheet-head"); var img = el("img"); img.src = IMG + (imgId || card.id) + ".jpg"; img.alt = card.name; img.onerror = function () { this.style.visibility = "hidden"; };
+    var head = el("div", "sheet-head"); var img = el("img"); img.src = thumb || (IMG + (imgId || card.id) + ".jpg"); img.alt = card.name; img.onerror = function () { this.src = IMG + (imgId || card.id) + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; };
     var hinfo = el("div"); hinfo.appendChild(el("div", "sh-nm", card.name)); var hs = el("div", "sh-sub"); hs.appendChild(withMono(set.set_code)); if (set.set_rarity) hs.appendChild(rarChip(set.set_rarity)); if (base > 0) hs.appendChild(el("span", "ci-code tnum", money(base) + " (NM)")); hinfo.appendChild(hs);
     head.appendChild(img); head.appendChild(hinfo); sheet.appendChild(head);
     var cb = el("div"); cb.appendChild(label("Tình trạng")); var cs = condSeg(Learn.top("cond", "NM")); cb.appendChild(cs); sheet.appendChild(cb);
@@ -947,12 +947,12 @@
     cs._onchange = refresh; qs._onchange = refresh; refresh();
     var foot = el("div", "sheet-foot"); var cancel = el("button", "btn ghost", "Hủy"); cancel.addEventListener("click", closeSheet);
     var ok = el("button", "btn", "Thêm vào BST"); ok.style.flex = "1";
-    ok.addEventListener("click", function () { Learn.bump("cond", cs.get()); Learn.bump("lang", ls.value); Store.add({ cardId: (card.card_images && card.card_images[0] && card.card_images[0].id) || card.id || 0, name: card.name, setCode: set.set_code || "", setName: set.set_name || "", rarity: set.set_rarity || "", price: base, condition: cs.get(), lang: ls.value }, qs.get()); closeSheet(); toast("Đã thêm " + qs.get() + "× " + card.name); });
+    ok.addEventListener("click", function () { Learn.bump("cond", cs.get()); Learn.bump("lang", ls.value); var item = { cardId: (card.card_images && card.card_images[0] && card.card_images[0].id) || card.id || 0, name: card.name, setCode: set.set_code || "", setName: set.set_name || "", rarity: set.set_rarity || "", price: base, condition: cs.get(), lang: ls.value }; if (thumb) item.thumb = thumb; Store.add(item, qs.get()); closeSheet(); toast("Đã thêm " + qs.get() + "× " + card.name); });
     foot.appendChild(cancel); foot.appendChild(ok); sheet.appendChild(foot);
   }
   function openEditSheet(it) {
     var sheet = buildSheet();
-    var head = el("div", "sheet-head"); var img = el("img"); img.src = IMG + it.cardId + ".jpg"; img.alt = it.name; img.onerror = function () { this.style.visibility = "hidden"; };
+    var head = el("div", "sheet-head"); var img = el("img"); img.src = it.thumb || (IMG + it.cardId + ".jpg"); img.alt = it.name; img.onerror = function () { if (it.thumb) { this.src = IMG + it.cardId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; } else { this.style.visibility = "hidden"; } };
     var hinfo = el("div"); hinfo.appendChild(el("div", "sh-nm", it.name)); var hs = el("div", "sh-sub"); hs.appendChild(withMono(it.setCode)); if (it.rarity) hs.appendChild(rarChip(it.rarity)); hinfo.appendChild(hs);
     head.appendChild(img); head.appendChild(hinfo); sheet.appendChild(head);
     var cb = el("div"); cb.appendChild(label("Tình trạng")); var cs = condSeg(it.condition); cb.appendChild(cs); sheet.appendChild(cb);
@@ -999,7 +999,7 @@
     if (!items.length) { body.appendChild(hintCenter("Không có lá nào khớp bộ lọc.")); return; }
     var wrap = el("div", "results");
     items.forEach(function (it) {
-      var row = el("div", "col-item"); var img = el("img"); img.loading = "lazy"; img.alt = it.name; img.src = IMG + it.cardId + ".jpg"; img.onerror = function () { this.style.visibility = "hidden"; };
+      var row = el("div", "col-item"); var img = el("img"); img.loading = "lazy"; img.alt = it.name; img.src = it.thumb || (IMG + it.cardId + ".jpg"); img.onerror = function () { if (it.thumb) { this.src = IMG + it.cardId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; } else { this.style.visibility = "hidden"; } };
       var main = el("button", "ci-main"); main.title = "Sửa"; main.appendChild(el("div", "ci-nm", it.name));
       var sub = el("div", "ci-sub"); if (it.setCode) sub.appendChild(el("span", "ci-code mono", it.setCode)); if (it.rarity) sub.appendChild(rarChip(it.rarity)); sub.appendChild(condChip(it.condition)); sub.appendChild(langChip(it.lang));
       var unit = (Number(it.price) || 0) * condFactor(it.condition); if (unit > 0) sub.appendChild(el("span", "ci-code tnum", money(unit)));
