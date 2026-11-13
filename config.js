@@ -3,8 +3,8 @@
    - Muốn đồng bộ điện thoại <-> máy tính: tạo project Supabase miễn phí,
      rồi dán URL + anon key vào đây (xem README, mục "Bật đồng bộ").  */
 window.YGO_CONFIG = {
-  supabaseUrl: "",       // vd: "https://abcd1234.supabase.co"
-  supabaseAnonKey: "",   // Publishable key (sb_publishable_...) HOẶC legacy anon public (eyJ...). KHÔNG dùng secret/service_role.
+  supabaseUrl: "https://waxefaltvlkzonzzqtom.supabase.co",
+  supabaseAnonKey: "sb_publishable_JSs-71O1abnmWliwf45YMw_v3Srv0xn",
 
   // --- Dịch hiệu ứng thẻ sang tiếng Việt ---
   // Thứ tự ưu tiên: Claude -> Gemini -> dịch máy. Dán key vào ô tương ứng để bật AI.
