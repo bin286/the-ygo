@@ -559,8 +559,11 @@
       var p = priceEl ? parseFloat(priceEl.textContent.replace(/[^0-9.]/g, "")) : 0;
       var href = a.getAttribute("href") || "";
       var fullUrl = href.startsWith("http") ? href : "https://tcgrepublic.com" + href;
+      var imgEl = a.querySelector("img");
+      var thumbSrc = imgEl ? (imgEl.getAttribute("src") || "") : "";
+      if (thumbSrc && !thumbSrc.startsWith("http")) thumbSrc = "https://tcgrepublic.com" + thumbSrc;
       if (!map[rarity] || (p > 0 && (map[rarity].price <= 0 || p < map[rarity].price))) {
-        map[rarity] = { price: p, url: fullUrl, label: rarity };
+        map[rarity] = { price: p, url: fullUrl, label: rarity, thumb: thumbSrc };
       }
     });
     return map;
@@ -725,8 +728,15 @@
           exact.forEach(function (s) {
             var rep = matchRepPrice(s.set_rarity);
             if (rep && rep.label) matchedRepKeys[rep.label] = true;
-            var row = el("div", "set-row match");
-            var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
+            var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
+            if (rep && rep.thumb) {
+              var timg = el("img"); timg.src = rep.thumb; timg.alt = s.set_rarity || "";
+              timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
+              timg.title = "Bấm để xem ảnh lớn";
+              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail", ""), "_blank"); }; })(rep.thumb));
+              row.appendChild(timg);
+            }
+            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
             left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
             var priceDiv;
             if (rep && rep.price > 0) {
@@ -744,8 +754,15 @@
           // Thêm foil chỉ có trên TCG Republic mà YGOPRODECK không liệt kê
           Object.keys(repMap).forEach(function (rk) {
             if (!matchedRepKeys[repMap[rk].label]) {
-              var row = el("div", "set-row match");
-              var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); sc.appendChild(rarChip(repMap[rk].label));
+              var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
+              if (repMap[rk].thumb) {
+                var timg2 = el("img"); timg2.src = repMap[rk].thumb; timg2.alt = repMap[rk].label;
+                timg2.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
+                timg2.title = "Bấm để xem ảnh lớn";
+                timg2.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail", ""), "_blank"); }; })(repMap[rk].thumb));
+                row.appendChild(timg2);
+              }
+              var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); sc.appendChild(rarChip(repMap[rk].label));
               left.appendChild(sc);
               var priceDiv = el("div", "price tnum");
               if (repMap[rk].price > 0) {
@@ -807,8 +824,19 @@
             return null;
           }
           function foilRowWithPrice(s, repInfo) {
-            var row = el("div", "set-row match");
-            var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
+            var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
+            // Ảnh foil từ TCG Republic
+            if (repInfo && repInfo.thumb) {
+              var timg = el("img"); timg.src = repInfo.thumb; timg.alt = s.set_rarity || "";
+              timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
+              timg.title = "Bấm để xem ảnh lớn";
+              timg.addEventListener("click", function () {
+                var big = repInfo.thumb.replace(".l2_thumbnail", "");
+                window.open(big, "_blank");
+              });
+              row.appendChild(timg);
+            }
+            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
             left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
             // Giá từ TCG Republic
             var priceDiv;
