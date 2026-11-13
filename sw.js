@@ -2,7 +2,7 @@
    - Shell (cùng origin): cache-first.
    - API ygoprodeck + ảnh thẻ: network-first, có cache ảnh dự phòng.
    - Thư viện CDN (supabase, tesseract): stale-while-revalidate. */
-var CACHE = "ygo-pwa-v26";
+var CACHE = "ygo-pwa-v27";
 var SHELL = [
   "./", "./index.html", "./app.js", "./config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png"

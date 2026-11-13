@@ -556,7 +556,7 @@
       var rarity = alt.substring(idx + code.length).trim();
       if (!rarity) rarity = "Normal";
       var priceEl = a.querySelector(".price_with_unit_offscreen");
-      var p = priceEl ? parseFloat(priceEl.textContent) : 0;
+      var p = priceEl ? parseFloat(priceEl.textContent.replace(/[^0-9.]/g, "")) : 0;
       var href = a.getAttribute("href") || "";
       var fullUrl = href.startsWith("http") ? href : "https://tcgrepublic.com" + href;
       if (!map[rarity] || (p > 0 && (map[rarity].price <= 0 || p < map[rarity].price))) {
