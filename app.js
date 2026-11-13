@@ -565,6 +565,29 @@
     });
     return map;
   }
+  // Lấy giá từ trang chi tiết sản phẩm TCG Republic (cho item "Not Available" trên search)
+  function tcgRepublicDetailPrice(url) {
+    return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(url), 12000)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (data) {
+        var html = data && data.contents ? data.contents : "";
+        if (!html) return 0;
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, "text/html");
+        // Giá trên trang chi tiết: .price_with_unit hoặc .selling_price hoặc itemprop="price"
+        var priceEl = doc.querySelector('.price_with_unit, [itemprop="price"], .selling_price');
+        if (priceEl) {
+          var val = priceEl.getAttribute("content") || priceEl.textContent || "";
+          var p = parseFloat(val.replace(/[^0-9.]/g, ""));
+          if (p > 0) return p;
+        }
+        // Fallback: tìm pattern $XX,XXX.XX trong HTML
+        var m = html.match(/\$[\d,]+\.\d{2}/);
+        if (m) { var p2 = parseFloat(m[0].replace(/[^0-9.]/g, "")); if (p2 > 0) return p2; }
+        return 0;
+      })
+      .catch(function () { return 0; });
+  }
   function fetchWithTimeout(url, ms) {
     var ctrl = new AbortController();
     var timer = setTimeout(function () { ctrl.abort(); }, ms);
@@ -582,7 +605,12 @@
         if (!html || html.length < 500) throw new Error("empty");
         var map = tcgRepublicParse(html, code);
         if (!Object.keys(map).length) throw new Error("no results");
-        return map;
+        // Với item chưa có giá (Not Available), thử fetch trang chi tiết
+        var missing = Object.keys(map).filter(function (k) { return map[k].price <= 0 && map[k].url; });
+        if (!missing.length) return map;
+        return Promise.all(missing.map(function (k) {
+          return tcgRepublicDetailPrice(map[k].url).then(function (p) { if (p > 0) map[k].price = p; });
+        })).then(function () { return map; });
       })
       .catch(function () { return {}; });
   }
