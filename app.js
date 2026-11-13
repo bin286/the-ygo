@@ -178,15 +178,16 @@
       signOut: function () { if (sb) sb.auth.signOut(); },
       add: function (item, addQty) {
         addQty = Math.max(1, addQty || 1); var key = makeKey(item); var cur = items.get(key);
-        var it = cur ? { cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cur.condition, lang: cur.lang, qty: cur.qty + addQty, key: key }
-          : { cardId: item.cardId, name: item.name, setCode: item.setCode, setName: item.setName, rarity: item.rarity, price: item.price, condition: item.condition, lang: item.lang, qty: addQty, key: key };
+        var it = cur ? { cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cur.condition, lang: cur.lang, qty: cur.qty + addQty, key: key, thumb: item.thumb || cur.thumb || "" }
+          : { cardId: item.cardId, name: item.name, setCode: item.setCode, setName: item.setName, rarity: item.rarity, price: item.price, condition: item.condition, lang: item.lang, qty: addQty, key: key, thumb: item.thumb || "" };
         return writeItem(it);
       },
-      setQty: function (key, qty) { var cur = items.get(key); if (!cur) return Promise.resolve(); if (qty <= 0) return deleteKey(key); return writeItem({ cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cur.condition, lang: cur.lang, qty: qty, key: key }); },
+      setQty: function (key, qty) { var cur = items.get(key); if (!cur) return Promise.resolve(); if (qty <= 0) return deleteKey(key); return writeItem({ cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cur.condition, lang: cur.lang, qty: qty, key: key, thumb: cur.thumb || "" }); },
       remove: function (key) { return deleteKey(key); },
+      updateThumb: function (key, thumb) { var cur = items.get(key); if (!cur || cur.thumb) return Promise.resolve(); cur.thumb = thumb; return writeItem(cur); },
       edit: function (oldKey, cond, lang, qty) {
         var cur = items.get(oldKey); if (!cur) return Promise.resolve();
-        var target = { cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cond, lang: lang, qty: qty };
+        var target = { cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cond, lang: lang, qty: qty, thumb: cur.thumb || "" };
         var newKey = makeKey(target);
         if (newKey !== oldKey) { var ex = items.get(newKey); target.qty = qty + (ex ? ex.qty : 0); target.key = newKey; return Promise.all([deleteKey(oldKey), writeItem(target)]); }
         target.key = newKey; return writeItem(target);
@@ -1012,6 +1013,47 @@
       row.appendChild(img); row.appendChild(main); row.appendChild(right); wrap.appendChild(row);
     });
     body.appendChild(wrap);
+    // Auto-fetch ảnh foil cho thẻ chưa có thumb
+    var needThumb = items.filter(function (it) { return !it.thumb && it.setCode; });
+    if (needThumb.length) {
+      // Nhóm theo setCode để mỗi mã chỉ fetch 1 lần
+      var byCode = {};
+      needThumb.forEach(function (it) { if (!byCode[it.setCode]) byCode[it.setCode] = []; byCode[it.setCode].push(it); });
+      var codes = Object.keys(byCode);
+      var idx = 0;
+      function fetchNext() {
+        if (idx >= codes.length) return;
+        var code = codes[idx++];
+        tcgRepublicSearch(code).then(function (repMap) {
+          if (!Object.keys(repMap).length) { fetchNext(); return; }
+          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
+          function normR(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
+          function baseR(s) { return normR(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
+          function findThumb(rarity) {
+            if (!rarity) return null;
+            var rup = rarity.toUpperCase(), brup = baseR(rarity);
+            for (var k in repMap) { if (k.toUpperCase() === rup && repMap[k].thumb) return repMap[k].thumb; }
+            for (var k2 in repMap) { if (baseR(k2) === brup && repMap[k2].thumb) return repMap[k2].thumb; }
+            var alias = RARITY_ALIAS[brup];
+            if (alias) { for (var k3 in repMap) { if (baseR(k3) === alias && repMap[k3].thumb) return repMap[k3].thumb; } }
+            // Fallback: lấy ảnh đầu tiên có thumb
+            for (var k4 in repMap) { if (repMap[k4].thumb) return repMap[k4].thumb; }
+            return null;
+          }
+          byCode[code].forEach(function (it) {
+            var t = findThumb(it.rarity);
+            if (t) {
+              Store.updateThumb(it.key, t);
+              // Cập nhật ảnh trên UI ngay
+              var imgs = document.querySelectorAll('.col-item img[alt="' + CSS.escape(it.name) + '"]');
+              imgs.forEach(function (im) { if (im.src.indexOf("ygoprodeck") >= 0) im.src = t; });
+            }
+          });
+          fetchNext();
+        });
+      }
+      fetchNext();
+    }
   }
   $("colFilter").addEventListener("input", renderCollection);
   $("exportBtn").addEventListener("click", function () {
