@@ -184,7 +184,13 @@
       },
       setQty: function (key, qty) { var cur = items.get(key); if (!cur) return Promise.resolve(); if (qty <= 0) return deleteKey(key); return writeItem({ cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cur.condition, lang: cur.lang, qty: qty, key: key, thumb: cur.thumb || "" }); },
       remove: function (key) { return deleteKey(key); },
-      updateThumb: function (key, thumb) { var cur = items.get(key); if (!cur || cur.thumb) return Promise.resolve(); cur.thumb = thumb; return writeItem(cur); },
+      updateThumb: function (key, thumb) {
+        var cur = items.get(key); if (!cur || cur.thumb) return Promise.resolve();
+        cur.thumb = thumb; persistLocal();
+        // lưu cloud ngầm, KHÔNG gọi notify() để tránh render lại cả danh sách
+        if (mode === "cloud" && sb && user) sb.from("cards").upsert(toRow(cur)).catch(function () { enqueue({ t: "upsert", it: cur }); });
+        return Promise.resolve();
+      },
       edit: function (oldKey, cond, lang, qty) {
         var cur = items.get(oldKey); if (!cur) return Promise.resolve();
         var target = { cardId: cur.cardId, name: cur.name, setCode: cur.setCode, setName: cur.setName, rarity: cur.rarity, price: cur.price, condition: cond, lang: lang, qty: qty, thumb: cur.thumb || "" };
@@ -1140,7 +1146,7 @@
     if (!items.length) { body.appendChild(hintCenter("Không có lá nào khớp bộ lọc.")); return; }
     var wrap = el("div", "results");
     items.forEach(function (it) {
-      var row = el("div", "col-item"); var img = el("img"); img.loading = "lazy"; img.alt = it.name; img.src = it.thumb || (IMG + it.cardId + ".jpg"); img.onerror = function () { if (it.thumb) { this.src = IMG + it.cardId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; } else { this.style.visibility = "hidden"; } };
+      var row = el("div", "col-item"); var img = el("img"); img.loading = "lazy"; img.alt = it.name; img.setAttribute("data-key", it.key); img.src = it.thumb || (IMG + it.cardId + ".jpg"); img.onerror = function () { if (it.thumb) { this.src = IMG + it.cardId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; } else { this.style.visibility = "hidden"; } };
       var main = el("button", "ci-main"); main.title = "Sửa"; main.appendChild(el("div", "ci-nm", it.name));
       var sub = el("div", "ci-sub"); if (it.setCode) sub.appendChild(el("span", "ci-code mono", it.setCode)); if (it.rarity) sub.appendChild(rarChip(it.rarity)); sub.appendChild(condChip(it.condition)); sub.appendChild(langChip(it.lang));
       var unit = (Number(it.price) || 0) * condFactor(it.condition); if (unit > 0) sub.appendChild(el("span", "ci-code tnum", money(unit)));
@@ -1184,9 +1190,9 @@
             var t = findThumb(it.rarity);
             if (t) {
               Store.updateThumb(it.key, t);
-              // Cập nhật ảnh trên UI ngay
-              var imgs = document.querySelectorAll('.col-item img[alt="' + CSS.escape(it.name) + '"]');
-              imgs.forEach(function (im) { if (im.src.indexOf("ygoprodeck") >= 0) im.src = t; });
+              // Cập nhật ảnh trên UI ngay (chỉ đúng thẻ theo key)
+              var im = document.querySelector('.col-item img[data-key="' + CSS.escape(it.key) + '"]');
+              if (im) im.src = t;
             }
           });
           fetchNext();
