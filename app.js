@@ -463,8 +463,61 @@
     body.innerHTML = '<p class="hint center"><span class="spin"></span> Đang tìm…</p>';
     searchByName(q).then(renderResults).catch(function () { body.innerHTML = ""; body.appendChild(hintCenter("Lỗi kết nối. Kiểm tra mạng rồi thử lại.")); });
   }
-  $("goBtn").addEventListener("click", function () { doSearch($("q").value); });
-  $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(this.value); });
+  $("goBtn").addEventListener("click", function () { closeSuggest(); doSearch($("q").value); });
+  $("q").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { closeSuggest(); doSearch(this.value); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); navSuggest(e.key === "ArrowDown" ? 1 : -1); return; }
+    if (e.key === "Escape") { closeSuggest(); return; }
+  });
+
+  // ============ GỢI Ý KHI GÕ (autocomplete) ============
+  var sugTimer = 0, sugReq = 0, sugIdx = -1;
+  function closeSuggest() { var box = $("suggestBox"); box.innerHTML = ""; box.classList.remove("open"); sugIdx = -1; }
+  function navSuggest(dir) {
+    var items = $("suggestBox").querySelectorAll(".sug-item");
+    if (!items.length) return;
+    if (sugIdx >= 0 && sugIdx < items.length) items[sugIdx].classList.remove("active");
+    sugIdx += dir;
+    if (sugIdx < 0) sugIdx = items.length - 1;
+    if (sugIdx >= items.length) sugIdx = 0;
+    items[sugIdx].classList.add("active");
+    items[sugIdx].scrollIntoView({ block: "nearest" });
+  }
+  function pickSuggest(card) {
+    closeSuggest();
+    $("q").value = card.name;
+    renderDetail(card);
+  }
+  function showSuggestions(cards) {
+    var box = $("suggestBox"); box.innerHTML = ""; sugIdx = -1;
+    if (!cards.length) { box.classList.remove("open"); return; }
+    cards.slice(0, 5).forEach(function (c, i) {
+      var row = el("div", "sug-item");
+      var imgId = c.card_images && c.card_images[0] ? c.card_images[0].id : c.id;
+      var img = el("img"); img.src = IMG + imgId + ".jpg"; img.alt = ""; img.loading = "lazy";
+      img.onerror = function () { this.style.display = "none"; };
+      var nm = el("span", "sug-name", c.name);
+      var ty = el("span", "sug-type", (c.type || "").replace(/ Card$/, ""));
+      row.appendChild(img); row.appendChild(nm); row.appendChild(ty);
+      row.addEventListener("mousedown", function (e) { e.preventDefault(); pickSuggest(c); });
+      box.appendChild(row);
+    });
+    box.classList.add("open");
+  }
+  $("q").addEventListener("input", function () {
+    var q = this.value.trim();
+    clearTimeout(sugTimer);
+    if (mode === "code" || q.length < 2 || hasJapanese(q)) { closeSuggest(); return; }
+    var seq = ++sugReq;
+    sugTimer = setTimeout(function () {
+      fetch(API + "?fname=" + encodeURIComponent(q) + "&num=5&offset=0")
+        .then(function (r) { if (r.status === 400) return { data: [] }; if (!r.ok) throw 0; return r.json(); })
+        .then(function (j) { if (seq !== sugReq) return; showSuggestions((j && j.data) || []); })
+        .catch(function () { if (seq === sugReq) closeSuggest(); });
+    }, 280);
+  });
+  $("q").addEventListener("blur", function () { setTimeout(closeSuggest, 150); });
+  document.addEventListener("click", function (e) { if (!e.target.closest(".search-row")) closeSuggest(); });
 
   // ---- Japanese name search ----
   function runJapaneseSearch(q) {

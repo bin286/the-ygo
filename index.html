@@ -85,11 +85,20 @@
   .seg button { flex: 1; background: transparent; border: 0; color: var(--muted); font-size: 13px; font-weight: 600; padding: 7px 6px; border-radius: 7px; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
 
-  .search-row { display: flex; gap: 8px; }
+  .search-row { display: flex; gap: 8px; position: relative; }
   .field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
   .field svg { width: 18px; height: 18px; color: var(--muted); flex: none; }
   .field input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 11px 0; }
   .field input:focus { outline: none; }
+  /* Autocomplete dropdown */
+  .suggest-box { position: absolute; top: 100%; left: 0; right: 56px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-top: 4px; overflow: hidden; z-index: 40; box-shadow: 0 8px 24px rgba(0,0,0,.25); display: none; }
+  .suggest-box.open { display: block; }
+  .sug-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
+  .sug-item:last-child { border-bottom: 0; }
+  .sug-item:hover, .sug-item.active { background: rgba(var(--gold-rgb, 212,175,55), .12); }
+  .sug-item img { width: 32px; height: 46px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  .sug-item .sug-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sug-item .sug-type { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
   .btn { background: var(--gold); color: #1a1407; border: 0; border-radius: 10px; padding: 11px 16px; font-weight: 600; font-size: 14px; white-space: nowrap; }
   .btn:active { transform: translateY(1px); }
   .btn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
@@ -245,6 +254,7 @@
         <input id="q" type="text" placeholder="Tên thẻ (vd: Dark Magician)" autocomplete="off" enterkeyhint="search">
       </label>
       <button class="btn" id="goBtn">Tìm</button>
+      <div class="suggest-box" id="suggestBox"></div>
     </div>
     <button class="btn ghost sm" id="foilGuideBtn" style="align-self:flex-start">ⓘ Cách phân loại foil / rarity</button>
     <div id="searchBody">
