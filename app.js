@@ -734,7 +734,7 @@
               var timg = el("img"); timg.src = rep.thumb; timg.alt = s.set_rarity || "";
               timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
               timg.title = "Bấm để xem ảnh lớn";
-              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail", ""), "_blank"); }; })(rep.thumb));
+              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(rep.thumb));
               row.appendChild(timg);
             }
             var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
@@ -760,7 +760,7 @@
                 var timg2 = el("img"); timg2.src = repMap[rk].thumb; timg2.alt = repMap[rk].label;
                 timg2.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
                 timg2.title = "Bấm để xem ảnh lớn";
-                timg2.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail", ""), "_blank"); }; })(repMap[rk].thumb));
+                timg2.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(repMap[rk].thumb));
                 row.appendChild(timg2);
               }
               var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); sc.appendChild(rarChip(repMap[rk].label));
@@ -832,7 +832,7 @@
               timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
               timg.title = "Bấm để xem ảnh lớn";
               timg.addEventListener("click", function () {
-                var big = repInfo.thumb.replace(".l2_thumbnail", "");
+                var big = repInfo.thumb.replace(".l2_thumbnail.jpg", "");
                 window.open(big, "_blank");
               });
               row.appendChild(timg);
