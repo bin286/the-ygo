@@ -668,23 +668,7 @@
       info.appendChild(viToggle); info.appendChild(viBox);
     }
     top.appendChild(img); top.appendChild(info); body.appendChild(top);
-    // Giá tham khảo trung bình đã xóa — chỉ dùng giá TCG Republic trên từng foil row
-    // Lịch sử giá: ghi giá đại diện theo ngày, vẽ biểu đồ xu hướng khi có >=2 mốc
-    (function () {
-      var priceInfo = avgPrice(c);
-      var rep = priceInfo ? priceInfo.avg : 0;
-      Learn.logPrice(c.id, rep);
-      var hist = Learn.priceHistory(c.id);
-      if (hist.length >= 2) {
-        var box = el("div");
-        var first = hist[0].p, last = hist[hist.length - 1].p; var pct = first > 0 ? ((last - first) / first * 100) : 0;
-        var head = el("div", "sec-title", "Xu hướng giá (tự ghi, " + hist.length + " mốc)");
-        box.appendChild(head); box.appendChild(sparkline(hist));
-        var sign = pct > 0 ? "▲ +" : (pct < 0 ? "▼ " : "• ");
-        box.appendChild(el("p", "note", sign + pct.toFixed(1) + "% từ " + hist[0].d + " (" + money(first) + ") → " + hist[hist.length - 1].d + " (" + money(last) + "). Trung bình nhiều nguồn; app tự tích luỹ theo ngày khi bạn mở thẻ."));
-        body.appendChild(box);
-      }
-    })();
+    // Đã xóa: giá tham khảo trung bình + lịch sử giá xu hướng
     // Tra theo mã bộ: CHỈ hiện đúng mã đã tra (các mức foil của chính mã đó), không liệt kê bộ khác
     if (extra && extra.codeView) {
       var qcode = extra.codeView;
