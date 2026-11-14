@@ -1353,6 +1353,13 @@
   // ============ INIT ============
   $("foilGuideBtn").addEventListener("click", openFoilGuide);
   $("settingsBtn").addEventListener("click", openSettings);
+  $("forceUpdateBtn").addEventListener("click", function () {
+    if (!confirm("Xóa cache cũ và tải bản mới nhất?")) return;
+    Promise.all([
+      navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (regs) { return Promise.all(regs.map(function (r) { return r.unregister(); })); }) : Promise.resolve(),
+      caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
+    ]).then(function () { location.reload(true); }).catch(function () { location.reload(true); });
+  });
   Store.onChange(function () { if (!$("p-collection").hidden) renderCollection(); updateSyncBadge(); });
   Store.init();
   // Khôi phục đúng tab + nội dung tra cứu khi refresh (không nhảy về trang đầu)
