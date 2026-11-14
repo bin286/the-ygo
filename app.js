@@ -1325,8 +1325,20 @@
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("sw.js").then(function (reg) {
-        // Kiểm tra cập nhật ngầm mỗi 10 phút, không reload — chờ lần mở tiếp theo
         setInterval(function () { reg.update(); }, 600000);
+        // Khi có SW mới sẵn sàng → hiện nút cập nhật
+        function onNewSW(sw) {
+          sw.addEventListener("statechange", function () {
+            if (sw.state === "installed" && navigator.serviceWorker.controller) {
+              var bar = el("div"); bar.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:var(--gold);color:#1a1407;text-align:center;padding:10px;font-weight:600;font-size:14px;z-index:999;cursor:pointer";
+              bar.textContent = "🔄 Có bản cập nhật — bấm để làm mới";
+              bar.addEventListener("click", function () { location.reload(); });
+              document.body.appendChild(bar);
+            }
+          });
+        }
+        if (reg.waiting) onNewSW(reg.waiting);
+        reg.addEventListener("updatefound", function () { if (reg.installing) onNewSW(reg.installing); });
       }).catch(function () {});
     });
   }
