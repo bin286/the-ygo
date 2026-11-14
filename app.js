@@ -511,41 +511,72 @@
   }
 
   // ---- Gợi ý thẻ theo mã bộ ----
-  var setCardsCache = {};  // cache theo set_name -> [{card, set_code, set_rarity}]
-  function flattenSetCards(cards) {
-    var out = [];
-    cards.forEach(function (c) {
-      (c.card_sets || []).forEach(function (s) {
-        out.push({ card: c, code: s.set_code || "", rarity: s.set_rarity || "", price: s.set_price || "" });
-      });
-    });
-    return out;
+  var setsCache = null, setsLoading = null;
+  var setCardsCache = {};  // cache theo set_name -> flat list
+  function loadSets() {
+    if (setsCache) return Promise.resolve(setsCache);
+    if (setsLoading) return setsLoading;
+    setsLoading = fetch("https://db.ygoprodeck.com/api/v7/cardsets.php")
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (arr) { setsCache = arr || []; return setsCache; })
+      .catch(function () { setsCache = []; return setsCache; });
+    return setsLoading;
+  }
+  function findSetByPrefix(prefix) {
+    if (!setsCache) return null;
+    var up = prefix.toUpperCase();
+    for (var i = 0; i < setsCache.length; i++) {
+      if ((setsCache[i].set_code || "").toUpperCase() === up) return setsCache[i];
+    }
+    return null;
+  }
+  function loadSetCards(setName) {
+    if (setCardsCache[setName]) return Promise.resolve(setCardsCache[setName]);
+    return fetch(API + "?cardset=" + encodeURIComponent(setName))
+      .then(function (r) { if (r.status === 400) return { data: [] }; if (!r.ok) throw 0; return r.json(); })
+      .then(function (j) {
+        var cards = (j && j.data) || [];
+        var flat = [];
+        cards.forEach(function (c) {
+          var imgId = c.card_images && c.card_images[0] ? c.card_images[0].id : c.id;
+          (c.card_sets || []).forEach(function (s) {
+            flat.push({ code: s.set_code || "", name: c.name, rarity: s.set_rarity || "", cardId: imgId });
+          });
+        });
+        // sắp xếp theo mã
+        flat.sort(function (a, b) { return a.code.localeCompare(b.code); });
+        setCardsCache[setName] = flat;
+        return flat;
+      })
+      .catch(function () { return []; });
   }
   function suggestByCode(q) {
     var up = q.toUpperCase();
-    // 1) tìm trong bộ sưu tập trước (instant)
+    // tách prefix set (trước dấu -)
+    var parts = up.split("-");
+    var setPrefix = parts[0];
+    // 1) tìm trong bộ sưu tập (instant)
     var colHits = [];
     Store.list().forEach(function (it) {
       if (it.setCode && it.setCode.toUpperCase().indexOf(up) === 0) {
-        colHits.push({ code: it.setCode, name: it.name, rarity: it.rarity, cardId: it.cardId, thumb: it.thumb, src: "col" });
+        colHits.push({ code: it.setCode, name: it.name, rarity: it.rarity, cardId: it.cardId, thumb: it.thumb });
       }
     });
-    // 2) gọi API tìm thẻ theo mã (exact match qua cardsetsinfo)
-    return fetch(SETINFO + "?setcode=" + encodeURIComponent(q))
-      .then(function (r) { if (r.status === 400) return null; if (!r.ok) throw 0; return r.json(); })
-      .then(function (hit) {
-        if (hit && hit.id) {
-          // tìm được thẻ chính xác → hiện thẻ đó + thẻ gần (cùng prefix)
-          var imgId = hit.id;
-          var exact = [{ code: hit.set_code, name: hit.name, rarity: hit.set_rarity || "", cardId: imgId, src: "api" }];
-          // tìm thêm thẻ cùng prefix từ collection
-          var merged = exact.concat(colHits.filter(function (c) { return c.code.toUpperCase() !== up; }));
-          return merged.slice(0, 5);
-        }
-        // không khớp chính xác → chỉ hiện từ collection
-        return colHits.slice(0, 5);
-      })
-      .catch(function () { return colHits.slice(0, 5); });
+    // 2) tìm set phù hợp → lấy thẻ trong set → lọc theo prefix
+    return loadSets().then(function () {
+      var setInfo = findSetByPrefix(setPrefix);
+      if (!setInfo) return colHits.slice(0, 5);
+      return loadSetCards(setInfo.set_name).then(function (flat) {
+        // lọc thẻ khớp prefix
+        var apiHits = flat.filter(function (f) { return f.code.toUpperCase().indexOf(up) === 0; });
+        // gộp: collection trước (có thumb), rồi API (bỏ trùng)
+        var seen = {};
+        var merged = [];
+        colHits.forEach(function (c) { if (!seen[c.code]) { seen[c.code] = 1; merged.push(c); } });
+        apiHits.forEach(function (a) { if (!seen[a.code]) { seen[a.code] = 1; merged.push(a); } });
+        return merged.slice(0, 5);
+      });
+    }).catch(function () { return colHits.slice(0, 5); });
   }
   function showCodeSuggestions(items) {
     var box = $("suggestBox"); box.innerHTML = ""; sugIdx = -1;
