@@ -510,61 +510,56 @@
     box.classList.add("open");
   }
 
-  // ---- Gợi ý mã bộ (card sets cache) ----
-  var setsCache = null, setsLoading = null;
-  function loadSets() {
-    if (setsCache) return Promise.resolve(setsCache);
-    if (setsLoading) return setsLoading;
-    setsLoading = fetch("https://db.ygoprodeck.com/api/v7/cardsets.php")
-      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-      .then(function (arr) { setsCache = arr || []; return setsCache; })
-      .catch(function () { setsCache = []; return setsCache; });
-    return setsLoading;
+  // ---- Gợi ý thẻ theo mã bộ ----
+  var setCardsCache = {};  // cache theo set_name -> [{card, set_code, set_rarity}]
+  function flattenSetCards(cards) {
+    var out = [];
+    cards.forEach(function (c) {
+      (c.card_sets || []).forEach(function (s) {
+        out.push({ card: c, code: s.set_code || "", rarity: s.set_rarity || "", price: s.set_price || "" });
+      });
+    });
+    return out;
   }
-  function matchSets(q) {
-    if (!setsCache) return [];
+  function suggestByCode(q) {
     var up = q.toUpperCase();
-    // tách phần prefix (trước dấu -) để khớp set_code
-    var prefix = up.split("-")[0];
-    var scored = [];
-    setsCache.forEach(function (s) {
-      var sc = (s.set_code || "").toUpperCase();
-      var sn = (s.set_name || "").toUpperCase();
-      var score = 0;
-      if (sc === prefix) score = 100;
-      else if (sc.indexOf(prefix) === 0) score = 80;
-      else if (sc.indexOf(prefix) >= 0) score = 50;
-      else if (sn.indexOf(up) >= 0) score = 40;
-      if (score > 0) scored.push({ set: s, score: score });
-    });
-    scored.sort(function (a, b) { return b.score - a.score; });
-    return scored.slice(0, 5).map(function (x) { return x.set; });
-  }
-  function showCodeSuggestions(sets, q) {
-    var box = $("suggestBox"); box.innerHTML = ""; sugIdx = -1;
-    // thêm gợi ý từ bộ sưu tập (mã đã có)
-    var colCodes = [], seen = {};
+    // 1) tìm trong bộ sưu tập trước (instant)
+    var colHits = [];
     Store.list().forEach(function (it) {
-      if (!it.setCode || seen[it.setCode]) return;
-      if (it.setCode.toUpperCase().indexOf(q.toUpperCase()) === 0) { seen[it.setCode] = 1; colCodes.push(it); }
-    });
-    // gộp: collection trước, rồi sets (bỏ trùng)
-    var items = [];
-    colCodes.slice(0, 3).forEach(function (it) { items.push({ code: it.setCode, label: it.name, sub: it.rarity || "", src: "col", thumb: it.thumb }); });
-    sets.forEach(function (s) {
-      if (items.length >= 5) return;
-      items.push({ code: s.set_code, label: s.set_name, sub: s.num_of_cards + " thẻ", src: "set", img: s.set_image });
-    });
-    if (!items.length) { box.classList.remove("open"); return; }
-    items.slice(0, 5).forEach(function (it) {
-      var row = el("div", "sug-item");
-      if (it.src === "col" && it.thumb) {
-        var img = el("img"); img.src = it.thumb; img.alt = ""; img.onerror = function () { this.style.display = "none"; }; row.appendChild(img);
-      } else if (it.img) {
-        var img2 = el("img"); img2.src = it.img; img2.alt = ""; img2.onerror = function () { this.style.display = "none"; }; row.appendChild(img2);
+      if (it.setCode && it.setCode.toUpperCase().indexOf(up) === 0) {
+        colHits.push({ code: it.setCode, name: it.name, rarity: it.rarity, cardId: it.cardId, thumb: it.thumb, src: "col" });
       }
-      var nm = el("span", "sug-name"); nm.innerHTML = '<b>' + escapeHtml(it.code) + '</b> — ' + escapeHtml(it.label);
-      var ty = el("span", "sug-type", it.sub);
+    });
+    // 2) gọi API tìm thẻ theo mã (exact match qua cardsetsinfo)
+    return fetch(SETINFO + "?setcode=" + encodeURIComponent(q))
+      .then(function (r) { if (r.status === 400) return null; if (!r.ok) throw 0; return r.json(); })
+      .then(function (hit) {
+        if (hit && hit.id) {
+          // tìm được thẻ chính xác → hiện thẻ đó + thẻ gần (cùng prefix)
+          var imgId = hit.id;
+          var exact = [{ code: hit.set_code, name: hit.name, rarity: hit.set_rarity || "", cardId: imgId, src: "api" }];
+          // tìm thêm thẻ cùng prefix từ collection
+          var merged = exact.concat(colHits.filter(function (c) { return c.code.toUpperCase() !== up; }));
+          return merged.slice(0, 5);
+        }
+        // không khớp chính xác → chỉ hiện từ collection
+        return colHits.slice(0, 5);
+      })
+      .catch(function () { return colHits.slice(0, 5); });
+  }
+  function showCodeSuggestions(items) {
+    var box = $("suggestBox"); box.innerHTML = ""; sugIdx = -1;
+    if (!items.length) { box.classList.remove("open"); return; }
+    items.forEach(function (it) {
+      var row = el("div", "sug-item");
+      var imgSrc = it.thumb || (it.cardId ? IMG + it.cardId + ".jpg" : "");
+      if (imgSrc) {
+        var img = el("img"); img.src = imgSrc; img.alt = ""; img.loading = "lazy";
+        img.onerror = function () { this.style.display = "none"; };
+        row.appendChild(img);
+      }
+      var nm = el("span", "sug-name"); nm.innerHTML = '<b>' + escapeHtml(it.code) + '</b> ' + escapeHtml(it.name);
+      var ty = el("span", "sug-type", it.rarity || "");
       row.appendChild(nm); row.appendChild(ty);
       row.addEventListener("mousedown", function (e) { e.preventDefault(); pickCodeSuggest(it.code); });
       box.appendChild(row);
@@ -577,11 +572,11 @@
     clearTimeout(sugTimer);
     if (q.length < 2) { closeSuggest(); return; }
     if (mode === "code") {
-      // gợi ý mã bộ
+      if (q.length < 3) { closeSuggest(); return; }
       var seq2 = ++sugReq;
       sugTimer = setTimeout(function () {
-        loadSets().then(function () { if (seq2 !== sugReq) return; showCodeSuggestions(matchSets(q), q); });
-      }, 150);
+        suggestByCode(q).then(function (items) { if (seq2 !== sugReq) return; showCodeSuggestions(items); });
+      }, 250);
       return;
     }
     if (hasJapanese(q)) { closeSuggest(); return; }
