@@ -560,6 +560,36 @@
       })
       .catch(function () { return []; });
   }
+  var yugiCache = {};  // cache prefix -> [{code, name}]
+  function suggestViaYugipedia(q, up) {
+    // Dùng Yugipedia opensearch để tìm mã OCG (JP/KR/AE...)
+    var searchQ = up.indexOf("-") >= 0 ? up : up + "-";
+    if (yugiCache[searchQ]) return Promise.resolve(yugiCache[searchQ]);
+    return fetch(YUGI + "?action=opensearch&search=" + encodeURIComponent(searchQ) + "&limit=20&namespace=0&format=json")
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (arr) {
+        var titles = (arr && arr[1]) || [];
+        // Lọc chỉ những code thực sự bắt đầu bằng prefix người dùng gõ
+        var codes = titles.filter(function (t) { return /^[A-Za-z0-9]+-[A-Za-z]*\d+$/.test(t) && t.toUpperCase().indexOf(up) === 0; });
+        if (!codes.length) { yugiCache[searchQ] = []; return []; }
+        // Batch resolve tên thẻ qua redirects (tối đa 10 codes mỗi lần)
+        var batch = codes.slice(0, 10);
+        return fetch(YUGI + "?action=query&titles=" + batch.map(encodeURIComponent).join("|") + "&redirects=1&format=json")
+          .then(function (r2) { if (!r2.ok) throw 0; return r2.json(); })
+          .then(function (j) {
+            var rmap = {};
+            ((j.query || {}).redirects || []).forEach(function (rd) { rmap[rd.from.toUpperCase()] = rd.to; });
+            var results = batch.map(function (code) {
+              var name = rmap[code.toUpperCase()] || code;
+              // Tìm cardId từ YGOPRODeck theo tên (để có ảnh)
+              return { code: code, name: name, rarity: "OCG", cardId: null };
+            });
+            yugiCache[searchQ] = results;
+            return results;
+          });
+      })
+      .catch(function () { return []; });
+  }
   function suggestByCode(q) {
     var up = q.toUpperCase();
     var hasDash = up.indexOf("-") >= 0;
@@ -595,20 +625,29 @@
         // gộp collection + sets
         return colHits.slice(0, 2).concat(setItems).slice(0, 5);
       }
-      // Không khớp set nào → thử cardsetsinfo cho mã chính xác
-      if (hasDash && up.length >= 5) {
-        return fetch(SETINFO + "?setcode=" + encodeURIComponent(q))
-          .then(function (r) { if (r.status === 400) return null; if (!r.ok) throw 0; return r.json(); })
-          .then(function (hit) {
-            if (hit && hit.id) {
-              return [{ code: hit.set_code, name: hit.name, rarity: hit.set_rarity || "", cardId: hit.id }]
-                .concat(colHits.filter(function (c) { return c.code.toUpperCase() !== up; })).slice(0, 5);
-            }
-            return colHits.slice(0, 5);
-          })
-          .catch(function () { return colHits.slice(0, 5); });
-      }
-      return colHits.slice(0, 5);
+      // Không khớp set TCG nào → thử Yugipedia (mã OCG: JP/KR/AE...)
+      return suggestViaYugipedia(q, up).then(function (yugiHits) {
+        if (yugiHits.length) {
+          var seen2 = {}, merged2 = [];
+          colHits.forEach(function (c) { if (!seen2[c.code]) { seen2[c.code] = 1; merged2.push(c); } });
+          yugiHits.forEach(function (a) { if (!seen2[a.code]) { seen2[a.code] = 1; merged2.push(a); } });
+          return merged2.slice(0, 5);
+        }
+        // Cuối cùng thử cardsetsinfo cho mã chính xác TCG
+        if (hasDash && up.length >= 5) {
+          return fetch(SETINFO + "?setcode=" + encodeURIComponent(q))
+            .then(function (r) { if (r.status === 400) return null; if (!r.ok) throw 0; return r.json(); })
+            .then(function (hit) {
+              if (hit && hit.id) {
+                return [{ code: hit.set_code, name: hit.name, rarity: hit.set_rarity || "", cardId: hit.id }]
+                  .concat(colHits.filter(function (c) { return c.code.toUpperCase() !== up; })).slice(0, 5);
+              }
+              return colHits.slice(0, 5);
+            })
+            .catch(function () { return colHits.slice(0, 5); });
+        }
+        return colHits.slice(0, 5);
+      });
     }).catch(function () { return colHits.slice(0, 5); });
   }
   function showCodeSuggestions(items) {
