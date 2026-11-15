@@ -949,7 +949,12 @@
         var enTitle = el("div", "sec-title", exact.length > 1 ? ("Mã " + qcode + " — " + exact.length + " loại foil của mã này, chọn loại bạn có") : ("Mã " + qcode + " — bấm + để thêm"));
         body.appendChild(enTitle);
         var elist = el("div", "sets");
-        // Hiện ngay giá TCGPlayer (từ YGOPRODeck)
+        // Sắp xếp giá thấp → cao (ban đầu, trước khi có dữ liệu static)
+        exact.sort(function (a, b) {
+          var pa = Number(a.set_price) || 0, pb = Number(b.set_price) || 0;
+          if (pa === 0 && pb === 0) return 0; if (pa === 0) return 1; if (pb === 0) return -1;
+          return pa - pb;
+        });
         exact.forEach(function (s) {
           var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
           var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
@@ -980,7 +985,7 @@
           var hasTcgStatic = tcgEntries && tcgEntries.length > 0;
           if (!hasRep && !hasTcgStatic && !hasTcgP) { enNote.innerHTML = "Bấm <b>Xem giá</b> để tra trên TCGPlayer."; return; }
           if (!hasRep && !hasTcgStatic) { enNote.innerHTML = "Giá tham khảo từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết."; return; }
-          // Có giá TCG Republic — rebuild list với cả 2 nguồn giá
+          // Rebuild: gộp tất cả foil từ TCGPlayer static + YGOPRODeck + TCG Republic
           var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
           function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
           function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
@@ -998,94 +1003,84 @@
             if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
             return null;
           }
-          elist.innerHTML = "";
-          var matchedRepKeys = {};
+          // Gộp tất cả foil: TCGPlayer static là nguồn chính (đầy đủ nhất)
+          var allFoils = []; // [{rarity, tcg:{m,l,id}, rep:{price,url,thumb,label}, setName}]
+          var seenRar = {};
+          // 1) Từ TCGPlayer static
+          if (tcgEntries) {
+            tcgEntries.forEach(function (te) {
+              var rar = te.r || "";
+              seenRar[rar.toUpperCase()] = true;
+              var rep = matchRepPrice(rar);
+              if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
+              allFoils.push({ rarity: rar, tcg: te, rep: rep, setName: (exact[0] || {}).set_name || "" });
+            });
+          }
+          // 2) Từ YGOPRODeck (bổ sung foil chưa có)
           exact.forEach(function (s) {
-            var rep = matchRepPrice(s.set_rarity);
-            if (rep && rep.label) matchedRepKeys[rep.label] = true;
+            if (s.set_rarity && !seenRar[(s.set_rarity || "").toUpperCase()]) {
+              seenRar[(s.set_rarity || "").toUpperCase()] = true;
+              var rep = matchRepPrice(s.set_rarity);
+              if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
+              allFoils.push({ rarity: s.set_rarity, tcg: null, rep: rep, setName: s.set_name || "", ygoPdPrice: Number(s.set_price) || 0 });
+            }
+          });
+          // 3) Từ TCG Republic (bổ sung foil còn thiếu)
+          Object.keys(repMap).forEach(function (rk) {
+            var lab = repMap[rk].label || rk;
+            if (!seenRar[lab.toUpperCase()]) {
+              seenRar[lab.toUpperCase()] = true;
+              allFoils.push({ rarity: lab, tcg: null, rep: repMap[rk], setName: "" });
+            }
+          });
+          // Sắp xếp giá từ thấp → cao (foil không có giá xếp cuối)
+          allFoils.sort(function (a, b) {
+            var pa = (a.rep && a.rep.price > 0) ? a.rep.price : (a.tcg && a.tcg.m > 0) ? a.tcg.m : (a.ygoPdPrice || 0);
+            var pb = (b.rep && b.rep.price > 0) ? b.rep.price : (b.tcg && b.tcg.m > 0) ? b.tcg.m : (b.ygoPdPrice || 0);
+            if (pa === 0 && pb === 0) return 0;
+            if (pa === 0) return 1;
+            if (pb === 0) return -1;
+            return pa - pb;
+          });
+          elist.innerHTML = "";
+          allFoils.forEach(function (f) {
             var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
-            if (rep && rep.thumb) {
-              var timg = el("img"); timg.src = rep.thumb; timg.alt = s.set_rarity || "";
+            if (f.rep && f.rep.thumb) {
+              var timg = el("img"); timg.src = f.rep.thumb; timg.alt = f.rarity;
               timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
               timg.title = "Bấm để xem ảnh lớn";
-              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(rep.thumb));
+              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(f.rep.thumb));
               row.appendChild(timg);
             }
-            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
-            left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
+            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
+            left.appendChild(sc); if (f.setName) left.appendChild(el("div", "sn", f.setName));
             // Giá: TCG Republic → TCGPlayer static → YGOPRODeck → "Xem giá"
-            var priceDiv;
-            var bestPrice;
-            // Tìm giá static TCGPlayer khớp rarity
-            var tcgMatch = null;
-            if (tcgEntries) {
-              var sr = (s.set_rarity || "").toUpperCase();
-              for (var ti = 0; ti < tcgEntries.length; ti++) {
-                if ((tcgEntries[ti].r || "").toUpperCase() === sr) { tcgMatch = tcgEntries[ti]; break; }
-              }
-              if (!tcgMatch && tcgEntries.length === 1) tcgMatch = tcgEntries[0];
-            }
-            if (rep && rep.price > 0) {
-              priceDiv = el("div", "price tnum");
-              var pa = el("a"); pa.href = rep.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
-              pa.textContent = "$" + rep.price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCG Republic";
-              priceDiv.appendChild(pa);
-              bestPrice = rep.price;
-            } else if (tcgMatch && tcgMatch.m > 0) {
-              priceDiv = el("div", "price tnum");
-              var pa2 = el("a"); pa2.href = "https://www.tcgplayer.com/product/" + tcgMatch.id; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
-              pa2.textContent = "$" + tcgMatch.m.toFixed(2); pa2.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa2.title = "Xem trên TCGPlayer";
-              priceDiv.appendChild(pa2);
-              bestPrice = tcgMatch.m;
-            } else if (Number(s.set_price) > 0) {
-              priceDiv = el("div", "price tnum");
-              var pa3 = el("a"); pa3.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa3.target = "_blank"; pa3.rel = "noopener noreferrer";
-              pa3.textContent = money(s.set_price); pa3.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa3.title = "Xem trên TCGPlayer";
-              priceDiv.appendChild(pa3);
-              bestPrice = Number(s.set_price);
+            var priceDiv = el("div", "price tnum");
+            var bestPrice = 0;
+            if (f.rep && f.rep.price > 0) {
+              var pa = el("a"); pa.href = f.rep.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+              pa.textContent = "$" + f.rep.price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCG Republic";
+              priceDiv.appendChild(pa); bestPrice = f.rep.price;
+            } else if (f.tcg && f.tcg.m > 0) {
+              var pa2 = el("a"); pa2.href = "https://www.tcgplayer.com/product/" + f.tcg.id; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+              pa2.textContent = "$" + f.tcg.m.toFixed(2); pa2.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa2.title = "Xem trên TCGPlayer";
+              priceDiv.appendChild(pa2); bestPrice = f.tcg.m;
+            } else if (f.ygoPdPrice > 0) {
+              var pa3 = el("a"); pa3.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa3.target = "_blank"; pa3.rel = "noopener noreferrer";
+              pa3.textContent = money(f.ygoPdPrice); pa3.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa3.title = "Xem trên TCGPlayer";
+              priceDiv.appendChild(pa3); bestPrice = f.ygoPdPrice;
             } else {
-              priceDiv = el("div", "price tnum");
-              var pa4 = el("a"); pa4.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa4.target = "_blank"; pa4.rel = "noopener noreferrer";
+              var pa4 = el("a"); pa4.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa4.target = "_blank"; pa4.rel = "noopener noreferrer";
               pa4.textContent = "Xem giá"; pa4.style.cssText = "color:var(--accent);font-size:12px"; pa4.title = "Xem trên TCGPlayer";
               priceDiv.appendChild(pa4);
-              bestPrice = 0;
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-            add.addEventListener("click", (function (ss, rp, bp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ss.set_name, set_rarity: ss.set_rarity, set_price: bp }, imgId, rp && rp.thumb ? rp.thumb : null); }; })(s, rep, bestPrice));
+            add.addEventListener("click", (function (ff, bp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ff.setName, set_rarity: ff.rarity, set_price: bp }, imgId, ff.rep && ff.rep.thumb ? ff.rep.thumb : null); }; })(f, bestPrice));
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
           });
-          // Thêm foil chỉ có trên TCG Republic mà YGOPRODECK không liệt kê
-          Object.keys(repMap).forEach(function (rk) {
-            if (!matchedRepKeys[repMap[rk].label]) {
-              var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
-              if (repMap[rk].thumb) {
-                var timg2 = el("img"); timg2.src = repMap[rk].thumb; timg2.alt = repMap[rk].label;
-                timg2.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
-                timg2.title = "Bấm để xem ảnh lớn";
-                timg2.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(repMap[rk].thumb));
-                row.appendChild(timg2);
-              }
-              var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); sc.appendChild(rarChip(repMap[rk].label));
-              left.appendChild(sc);
-              var priceDiv = el("div", "price tnum");
-              if (repMap[rk].price > 0) {
-                var pa = el("a"); pa.href = repMap[rk].url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
-                pa.textContent = "$" + repMap[rk].price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "TCG Republic";
-                priceDiv.appendChild(pa);
-              } else if (repMap[rk].url) {
-                var pa2 = el("a"); pa2.href = repMap[rk].url; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
-                pa2.textContent = "Xem giá"; pa2.style.cssText = "color:var(--accent);font-size:12px";
-                priceDiv.appendChild(pa2);
-              } else { priceDiv.textContent = "—"; }
-              var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-              add.addEventListener("click", (function (rk2) { return function () { openAddSheet(c, { set_code: qcode, set_name: "", set_rarity: repMap[rk2].label, set_price: repMap[rk2].price || 0 }, imgId, repMap[rk2].thumb || null); }; })(rk));
-              row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
-            }
-          });
-          var totalRows = elist.querySelectorAll(".set-row").length;
-          enTitle.textContent = totalRows > 1 ? ("Mã " + qcode + " — " + totalRows + " loại foil, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
+          enTitle.textContent = allFoils.length > 1 ? ("Mã " + qcode + " — " + allFoils.length + " loại foil, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
           var hasRepPrice = Object.keys(repMap).some(function (k) { return repMap[k].price > 0; });
-          enNote.innerHTML = hasRepPrice ? "Giá tham khảo từ <b>TCG Republic</b> (USD). Bấm giá để xem chi tiết." : (hasTcgStatic ? "Giá từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết." : "Giá từ <b>TCGPlayer</b>. Bấm giá để xem chi tiết.");
+          enNote.innerHTML = hasRepPrice ? "Giá tham khảo từ <b>TCG Republic</b> & <b>TCGPlayer</b> (USD). Sắp xếp thấp → cao." : (hasTcgStatic ? "Giá từ <b>TCGPlayer</b> (USD). Sắp xếp thấp → cao." : "Giá từ <b>TCGPlayer</b>. Bấm giá để xem chi tiết.");
         });
       } else {
         // mã Nhật/ngôn ngữ khác: mỗi loại foil của mã đó là 1 dòng riêng để thêm đúng loại bạn có
@@ -1206,6 +1201,12 @@
       // Collect unique set abbreviations to fetch static prices
       var setAbbrs = {};
       sets.forEach(function (s) { var p = (s.set_code || "").split("-"); if (p[0]) setAbbrs[p[0].toUpperCase()] = 1; });
+      // Sắp xếp giá thấp → cao
+      sets.sort(function (a, b) {
+        var pa = Number(a.set_price) || 0, pb = Number(b.set_price) || 0;
+        if (pa === 0 && pb === 0) return 0; if (pa === 0) return 1; if (pb === 0) return -1;
+        return pa - pb;
+      });
       sets.forEach(function (s) {
         var row = el("div", "set-row"); if (matchCode && s.set_code === matchCode) { row.classList.add("match"); matchRow = row; }
         var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); sc.appendChild(rarChip(s.set_rarity));
