@@ -441,7 +441,7 @@
     var links = el("p", "note"); links.textContent = "Lấy key: Claude — console.anthropic.com · Gemini (free) — aistudio.google.com/apikey"; sheet.appendChild(links);
     var foot = el("div", "sheet-foot");
     var clear = el("button", "btn ghost", "Xóa key dịch"); clear.addEventListener("click", function () { VI.saveSettings({ anthropic: "", anthropicModel: "", gemini: "" }); toast("Đã xóa key — dùng dịch máy"); closeSheet(); });
-    var save = el("button", "btn", "Lưu key dịch"); save.style.flex = "1";
+    var save = el("button", "btn", "Lưu key dịch");
     save.addEventListener("click", function () { VI.saveSettings({ anthropic: aKeyF._input.value.trim(), anthropicModel: aModelF._input.value.trim(), gemini: gKeyF._input.value.trim() }); toast("Đã lưu — đang dùng " + VI.activeName()); closeSheet(); });
     foot.appendChild(clear); foot.appendChild(save); sheet.appendChild(foot);
   }
@@ -451,13 +451,14 @@
   function setMode(m) { mode = m; Array.prototype.forEach.call($("modeSeg").querySelectorAll("button"), function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-mode") === m ? "true" : "false"); }); $("q").placeholder = m === "code" ? "Mã bộ (vd: RA01-EN001 / YAS3-JP003)" : "Tên thẻ — Anh hoặc Nhật (青眼の白龍)"; }
   $("modeSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-mode]"); if (!b) return; setMode(b.getAttribute("data-mode")); $("q").value = ""; $("searchBody").innerHTML = '<p class="hint center">' + (mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.") + "</p>"; });
 
+  function imgFade(img) { img.classList.add("img-fade"); img.onload = function () { this.classList.add("loaded"); }; return img; }
   function renderResults(list) {
     currentResults = list; var body = $("searchBody"); body.innerHTML = "";
     if (!list.length) { body.appendChild(hintCenter("Không tìm thấy thẻ khớp. Thử tên khác hoặc kiểm tra chính tả.")); return; }
     var wrap = el("div", "results");
-    list.forEach(function (c) {
-      var row = el("button", "card-row");
-      var img = el("img"); img.loading = "lazy"; img.alt = c.name; img.src = IMG + c.id + ".jpg"; img.onerror = function () { this.style.visibility = "hidden"; };
+    list.forEach(function (c, i) {
+      var row = el("button", "card-row"); row.style.animationDelay = (i * 30) + "ms";
+      var img = el("img"); img.loading = "lazy"; img.alt = c.name; img.src = IMG + c.id + ".jpg"; img.onerror = function () { this.style.visibility = "hidden"; }; imgFade(img);
       var meta = el("div", "meta"); meta.appendChild(el("div", "nm", c.name)); meta.appendChild(el("div", "ty", c.humanReadableCardType || c.type || ""));
       var chev = el("span", "chev"); chev.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>';
       row.appendChild(img); row.appendChild(meta); row.appendChild(chev);
@@ -893,13 +894,13 @@
 
   function renderDetail(c, matchCode, extra) {
     var body = $("searchBody"); body.innerHTML = "";
-    var back = el("button", "btn ghost sm", "‹ Quay lại"); back.style.alignSelf = "flex-start";
+    var back = el("button", "btn ghost sm back-btn", "‹ Quay lại");
     back.addEventListener("click", function () { if (currentResults.length) renderResults(currentResults); else { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); } });
     body.appendChild(back);
-    if (extra && extra.codeNote) { var cn = el("div", "note"); cn.style.alignSelf = "flex-start"; cn.innerHTML = "🔎 " + escapeHtml(extra.codeNote); body.appendChild(cn); }
+    if (extra && extra.codeNote) { var cn = el("div", "note back-btn"); cn.innerHTML = "🔎 " + escapeHtml(extra.codeNote); body.appendChild(cn); }
     var imgId = (c.card_images && c.card_images[0] && c.card_images[0].id) || c.id;
     var top = el("div", "detail-top");
-    var img = el("img"); img.src = IMG + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.style.visibility = "hidden"; };
+    var img = el("img"); img.src = IMG + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.style.visibility = "hidden"; }; imgFade(img);
     var info = el("div", "detail-info"); info.appendChild(el("h2", null, c.name));
     var sl = el("div", "stat-line");
     if (extra && extra.jpName) addStat(sl, "Tên Nhật", extra.jpName);
@@ -910,7 +911,7 @@
     if (c.archetype) { var ar = el("div", "stat-line"); addStat(ar, "Archetype", c.archetype); info.appendChild(ar); }
     if (c.desc) {
       info.appendChild(el("div", "desc", c.desc));
-      var viToggle = el("button", "btn ghost sm"); viToggle.style.alignSelf = "flex-start"; viToggle.style.marginTop = "2px";
+      var viToggle = el("button", "btn ghost sm back-btn");
       var VI_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:5px"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1m14 20-5-10-5 10m2-4h6"/></svg>';
       function setBtn(open) { viToggle.innerHTML = VI_ICON + (open ? "Ẩn bản dịch" : "Dịch tiếng Việt"); }
       setBtn(false);
@@ -956,18 +957,18 @@
           return pa - pb;
         });
         exact.forEach(function (s) {
-          var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
-          var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
+          var row = el("div", "set-row match foil-row");
+          var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
           left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
           var tcpUrl = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code);
           var priceDiv = el("div", "price tnum");
           if (Number(s.set_price) > 0) {
-            var pa = el("a"); pa.href = tcpUrl; pa.target = "_blank"; pa.rel = "noopener noreferrer";
-            pa.textContent = money(s.set_price); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCGPlayer";
+            var pa = el("a", "price-link"); pa.href = tcpUrl; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+            pa.textContent = money(s.set_price); pa.title = "Xem trên TCGPlayer";
             priceDiv.appendChild(pa);
           } else {
-            var pa2 = el("a"); pa2.href = tcpUrl; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
-            pa2.textContent = "Xem giá"; pa2.style.cssText = "color:var(--accent);font-size:12px"; pa2.title = "Xem trên TCGPlayer";
+            var pa2 = el("a", "price-link muted"); pa2.href = tcpUrl; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+            pa2.textContent = "Xem giá"; pa2.title = "Xem trên TCGPlayer";
             priceDiv.appendChild(pa2);
           }
           var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
@@ -1044,34 +1045,33 @@
           });
           elist.innerHTML = "";
           allFoils.forEach(function (f) {
-            var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
+            var row = el("div", "set-row match foil-row");
             if (f.rep && f.rep.thumb) {
-              var timg = el("img"); timg.src = f.rep.thumb; timg.alt = f.rarity;
-              timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
-              timg.title = "Bấm để xem ảnh lớn";
+              var timg = el("img", "foil-thumb"); timg.src = f.rep.thumb; timg.alt = f.rarity;
+              timg.title = "Bấm để xem ảnh lớn"; imgFade(timg);
               timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(f.rep.thumb));
               row.appendChild(timg);
             }
-            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
+            var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
             left.appendChild(sc); if (f.setName) left.appendChild(el("div", "sn", f.setName));
             // Giá: TCG Republic → TCGPlayer static → YGOPRODeck → "Xem giá"
             var priceDiv = el("div", "price tnum");
             var bestPrice = 0;
             if (f.rep && f.rep.price > 0) {
-              var pa = el("a"); pa.href = f.rep.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
-              pa.textContent = "$" + f.rep.price.toFixed(2); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCG Republic";
+              var pa = el("a", "price-link"); pa.href = f.rep.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+              pa.textContent = "$" + f.rep.price.toFixed(2); pa.title = "Xem trên TCG Republic";
               priceDiv.appendChild(pa); bestPrice = f.rep.price;
             } else if (f.tcg && f.tcg.m > 0) {
-              var pa2 = el("a"); pa2.href = "https://www.tcgplayer.com/product/" + f.tcg.id; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
-              pa2.textContent = "$" + f.tcg.m.toFixed(2); pa2.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa2.title = "Xem trên TCGPlayer";
+              var pa2 = el("a", "price-link"); pa2.href = "https://www.tcgplayer.com/product/" + f.tcg.id; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+              pa2.textContent = "$" + f.tcg.m.toFixed(2); pa2.title = "Xem trên TCGPlayer";
               priceDiv.appendChild(pa2); bestPrice = f.tcg.m;
             } else if (f.ygoPdPrice > 0) {
-              var pa3 = el("a"); pa3.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa3.target = "_blank"; pa3.rel = "noopener noreferrer";
-              pa3.textContent = money(f.ygoPdPrice); pa3.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa3.title = "Xem trên TCGPlayer";
+              var pa3 = el("a", "price-link"); pa3.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa3.target = "_blank"; pa3.rel = "noopener noreferrer";
+              pa3.textContent = money(f.ygoPdPrice); pa3.title = "Xem trên TCGPlayer";
               priceDiv.appendChild(pa3); bestPrice = f.ygoPdPrice;
             } else {
-              var pa4 = el("a"); pa4.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa4.target = "_blank"; pa4.rel = "noopener noreferrer";
-              pa4.textContent = "Xem giá"; pa4.style.cssText = "color:var(--accent);font-size:12px"; pa4.title = "Xem trên TCGPlayer";
+              var pa4 = el("a", "price-link muted"); pa4.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(qcode); pa4.target = "_blank"; pa4.rel = "noopener noreferrer";
+              pa4.textContent = "Xem giá"; pa4.title = "Xem trên TCGPlayer";
               priceDiv.appendChild(pa4);
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
@@ -1122,33 +1122,31 @@
             return null;
           }
           function foilRowWithPrice(s, repInfo) {
-            var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
+            var row = el("div", "set-row match foil-row");
             // Ảnh foil từ TCG Republic
             if (repInfo && repInfo.thumb) {
-              var timg = el("img"); timg.src = repInfo.thumb; timg.alt = s.set_rarity || "";
-              timg.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;cursor:pointer;border:1px solid rgba(255,255,255,.12)";
-              timg.title = "Bấm để xem ảnh lớn";
+              var timg = el("img", "foil-thumb"); timg.src = repInfo.thumb; timg.alt = s.set_rarity || "";
+              timg.title = "Bấm để xem ảnh lớn"; imgFade(timg);
               timg.addEventListener("click", function () {
                 var big = repInfo.thumb.replace(".l2_thumbnail.jpg", "");
                 window.open(big, "_blank");
               });
               row.appendChild(timg);
             }
-            var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
+            var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
             left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
             // Giá từ TCG Republic
             var priceDiv;
             if (repInfo && repInfo.price > 0) {
               priceDiv = el("div", "price tnum");
-              var pa = el("a"); pa.href = repInfo.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+              var pa = el("a", "price-link"); pa.href = repInfo.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
               pa.textContent = "$" + repInfo.price.toFixed(2);
-              pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted";
               pa.title = "Xem trên TCG Republic";
               priceDiv.appendChild(pa);
             } else if (repInfo && repInfo.url) {
               priceDiv = el("div", "price tnum");
-              var pa2 = el("a"); pa2.href = repInfo.url; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
-              pa2.textContent = "Xem giá"; pa2.style.cssText = "color:var(--accent);font-size:12px";
+              var pa2 = el("a", "price-link muted"); pa2.href = repInfo.url; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+              pa2.textContent = "Xem giá";
               priceDiv.appendChild(pa2);
             } else {
               priceDiv = el("div", "price tnum", "—");
@@ -1213,8 +1211,8 @@
         left.appendChild(sc); left.appendChild(el("div", "sn", s.set_name || ""));
         var priceDiv = el("div", "price tnum");
         if (Number(s.set_price) > 0) {
-          var pa = el("a"); pa.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa.target = "_blank"; pa.rel = "noopener noreferrer";
-          pa.textContent = money(s.set_price); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCGPlayer";
+          var pa = el("a", "price-link"); pa.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa.target = "_blank"; pa.rel = "noopener noreferrer";
+          pa.textContent = money(s.set_price); pa.title = "Xem trên TCGPlayer";
           priceDiv.appendChild(pa);
         } else { priceDiv.textContent = "—"; }
         priceDiv.setAttribute("data-code", s.set_code); priceDiv.setAttribute("data-rar", s.set_rarity || "");
@@ -1242,7 +1240,7 @@
             if (match && match.m > 0) {
               pd.textContent = "";
               var a = el("a"); a.href = "https://www.tcgplayer.com/product/" + match.id; a.target = "_blank"; a.rel = "noopener noreferrer";
-              a.textContent = "$" + match.m.toFixed(2); a.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; a.title = "Xem trên TCGPlayer";
+              a.className = "price-link"; a.textContent = "$" + match.m.toFixed(2); a.title = "Xem trên TCGPlayer";
               pd.appendChild(a);
             }
           });
@@ -1256,7 +1254,7 @@
   }
   function renderMiniDetail(hit) {
     var body = $("searchBody"); body.innerHTML = "";
-    var back = el("button", "btn ghost sm", "‹ Quay lại"); back.style.alignSelf = "flex-start"; back.addEventListener("click", function () { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); });
+    var back = el("button", "btn ghost sm back-btn", "‹ Quay lại"); back.addEventListener("click", function () { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); });
     body.appendChild(back); body.appendChild(el("h2", null, hit.name));
     var sl = el("div", "stat-line"); addStat(sl, "Bộ", hit.set_name); body.appendChild(sl);
     var list = el("div", "sets"); var row = el("div", "set-row match");
@@ -1287,7 +1285,7 @@
     function refresh() { var f = condFactor(cs.get()), q = qs.get(), u = base * f; preview.innerHTML = base > 0 ? "Giá ước tính: <b>" + money(u) + "</b>/lá × " + q + " = <b>" + money(u * q) + "</b>" : "Giá: chưa có dữ liệu"; }
     cs._onchange = refresh; qs._onchange = refresh; refresh();
     var foot = el("div", "sheet-foot"); var cancel = el("button", "btn ghost", "Hủy"); cancel.addEventListener("click", closeSheet);
-    var ok = el("button", "btn", "Thêm vào BST"); ok.style.flex = "1";
+    var ok = el("button", "btn", "Thêm vào BST");
     ok.addEventListener("click", function () { Learn.bump("cond", cs.get()); Learn.bump("lang", ls.value); var item = { cardId: (card.card_images && card.card_images[0] && card.card_images[0].id) || card.id || 0, name: card.name, setCode: set.set_code || "", setName: set.set_name || "", rarity: set.set_rarity || "", price: base, condition: cs.get(), lang: ls.value }; if (thumb) item.thumb = thumb; Store.add(item, qs.get()); closeSheet(); toast("Đã thêm " + qs.get() + "× " + card.name); });
     foot.appendChild(cancel); foot.appendChild(ok); sheet.appendChild(foot);
   }
@@ -1299,20 +1297,20 @@
     var cb = el("div"); cb.appendChild(label("Tình trạng")); var cs = condSeg(it.condition); cb.appendChild(cs); sheet.appendChild(cb);
     var lb = el("div"); lb.appendChild(label("Ngôn ngữ / phiên bản")); var ls = langSelect(it.lang); lb.appendChild(ls); sheet.appendChild(lb);
     var qb = el("div"); qb.appendChild(label("Số lượng")); var qs = qtyStepper(it.qty); qb.appendChild(qs); sheet.appendChild(qb);
-    var foot = el("div", "sheet-foot"); var del = el("button", "btn ghost", "Xóa"); del.style.color = "var(--danger)"; del.addEventListener("click", function () { Store.remove(it.key); closeSheet(); toast("Đã xóa"); });
-    var ok = el("button", "btn", "Lưu"); ok.style.flex = "1"; ok.addEventListener("click", function () { Store.edit(it.key, cs.get(), ls.value, qs.get()); closeSheet(); toast("Đã cập nhật"); });
+    var foot = el("div", "sheet-foot"); var del = el("button", "btn ghost btn-danger", "Xóa"); del.addEventListener("click", function () { Store.remove(it.key); closeSheet(); toast("Đã xóa"); });
+    var ok = el("button", "btn", "Lưu"); ok.addEventListener("click", function () { Store.edit(it.key, cs.get(), ls.value, qs.get()); closeSheet(); toast("Đã cập nhật"); });
     foot.appendChild(del); foot.appendChild(ok); sheet.appendChild(foot);
   }
 
   // ============ COLLECTION ============
   function renderAuthRow() {
-    var row = $("authRow"); if (!cloudConfigured() || !Store.cloudReady) { row.hidden = true; return; } row.hidden = false; row.innerHTML = ""; row.style.flexDirection = ""; row.style.alignItems = ""; row.style.gap = "";
-    if (Store.user) { var who = el("div"); who.style.flex = "1"; who.style.minWidth = "0"; who.innerHTML = '<div style="font-size:12px;color:var(--muted)">Đã đăng nhập</div><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(Store.user.email || "") + "</div>"; var out = el("button", "btn ghost sm", "Đăng xuất"); out.addEventListener("click", function () { Store.signOut(); }); row.appendChild(who); row.appendChild(out); }
+    var row = $("authRow"); if (!cloudConfigured() || !Store.cloudReady) { row.hidden = true; return; } row.hidden = false; row.innerHTML = ""; row.className = "auth-row";
+    if (Store.user) { var who = el("div", "auth-who"); who.innerHTML = '<div class="auth-label">Đã đăng nhập</div><div class="auth-email">' + escapeHtml(Store.user.email || "") + "</div>"; var out = el("button", "btn ghost sm", "Đăng xuất"); out.addEventListener("click", function () { Store.signOut(); }); row.appendChild(who); row.appendChild(out); }
     else {
-      row.style.flexDirection = "column"; row.style.alignItems = "stretch"; row.style.gap = "8px";
-      var ef = el("label", "field"); ef.style.flex = "0 0 auto"; var em = el("input"); em.type = "email"; em.placeholder = "Email"; em.autocomplete = "email"; ef.appendChild(em);
-      var pf = el("label", "field"); pf.style.flex = "0 0 auto"; var pw = el("input"); pw.type = "password"; pw.placeholder = "Mật khẩu (≥ 6 ký tự)"; pw.autocomplete = "current-password"; pf.appendChild(pw);
-      var go = el("button", "btn", "Đăng nhập / Tạo tài khoản"); go.style.width = "100%";
+      row.classList.add("auth-form");
+      var ef = el("label", "field auth-field"); var em = el("input"); em.type = "email"; em.placeholder = "Email"; em.autocomplete = "email"; ef.appendChild(em);
+      var pf = el("label", "field auth-field"); var pw = el("input"); pw.type = "password"; pw.placeholder = "Mật khẩu (≥ 6 ký tự)"; pw.autocomplete = "current-password"; pf.appendChild(pw);
+      var go = el("button", "btn auth-go-btn", "Đăng nhập / Tạo tài khoản");
       function doLogin() {
         var e = (em.value || "").trim(), p = pw.value || "";
         if (!/.+@.+\..+/.test(e)) { toast("Nhập email hợp lệ"); return; }
@@ -1404,8 +1402,8 @@
   });
   function csvCell(v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   function showCsv(csv) {
-    var body = $("collectionBody"); var box = el("div"); box.style.cssText = "display:flex;flex-direction:column;gap:8px;margin-bottom:14px";
-    var ta = el("textarea", "csv"); ta.value = csv; ta.readOnly = true; var btns = el("div"); btns.style.cssText = "display:flex;gap:8px";
+    var body = $("collectionBody"); var box = el("div", "csv-box");
+    var ta = el("textarea", "csv"); ta.value = csv; ta.readOnly = true; var btns = el("div", "csv-btns");
     var copy = el("button", "btn sm", "Sao chép"); var close = el("button", "btn ghost sm", "Đóng");
     copy.addEventListener("click", function () { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(csv).then(function () { toast("Đã sao chép CSV"); }).catch(function () { ta.select(); }); else { ta.select(); } });
     close.addEventListener("click", renderCollection); btns.appendChild(copy); btns.appendChild(close);
@@ -1531,8 +1529,8 @@
         function onNewSW(sw) {
           sw.addEventListener("statechange", function () {
             if (sw.state === "installed" && navigator.serviceWorker.controller) {
-              var bar = el("div"); bar.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:var(--gold);color:#1a1407;text-align:center;padding:10px;font-weight:600;font-size:14px;z-index:999;cursor:pointer";
-              bar.textContent = "🔄 Có bản cập nhật — bấm để làm mới";
+              var bar = el("div", "update-bar");
+              bar.textContent = "Có bản cập nhật — bấm để làm mới";
               bar.addEventListener("click", function () { location.reload(); });
               document.body.appendChild(bar);
             }
