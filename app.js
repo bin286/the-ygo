@@ -935,12 +935,17 @@
           var row = el("div", "set-row match"); row.style.cssText = "display:flex;align-items:center;gap:10px";
           var left = el("div"); left.style.flex = "1"; var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
           left.appendChild(sc); if (s.set_name) left.appendChild(el("div", "sn", s.set_name));
+          var tcpUrl = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code);
           var priceDiv = el("div", "price tnum");
           if (Number(s.set_price) > 0) {
-            var pa = el("a"); pa.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa.target = "_blank"; pa.rel = "noopener noreferrer";
-            pa.textContent = money(s.set_price); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "TCGPlayer";
+            var pa = el("a"); pa.href = tcpUrl; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+            pa.textContent = money(s.set_price); pa.style.cssText = "color:inherit;text-decoration:underline;text-decoration-style:dotted"; pa.title = "Xem trên TCGPlayer";
             priceDiv.appendChild(pa);
-          } else { priceDiv.textContent = "—"; }
+          } else {
+            var pa2 = el("a"); pa2.href = tcpUrl; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+            pa2.textContent = "Xem giá"; pa2.style.cssText = "color:var(--accent);font-size:12px"; pa2.title = "Xem trên TCGPlayer";
+            priceDiv.appendChild(pa2);
+          }
           var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
           add.addEventListener("click", function () { openAddSheet(c, { set_code: qcode, set_name: s.set_name, set_rarity: s.set_rarity, set_price: s.set_price || 0 }, imgId); });
           row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
@@ -949,7 +954,7 @@
         var hasTcgP = exact.some(function (s) { return Number(s.set_price) > 0; });
         var enNote = el("p", "note"); enNote.innerHTML = '<span class="spin"></span> Đang tra giá TCG Republic…'; body.appendChild(enNote);
         tcgRepublicSearch(qcode).then(function (repMap) {
-          if (!Object.keys(repMap).length) { enNote.innerHTML = hasTcgP ? "Giá tham khảo từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết." : ""; return; }
+          if (!Object.keys(repMap).length) { enNote.innerHTML = hasTcgP ? "Giá tham khảo từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết." : "Bấm <b>Xem giá</b> để tra trên TCGPlayer."; return; }
           // Có giá TCG Republic — rebuild list với cả 2 nguồn giá
           var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
           function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
@@ -999,7 +1004,10 @@
               priceDiv.appendChild(pa2);
               bestPrice = Number(s.set_price);
             } else {
-              priceDiv = el("div", "price tnum", "—");
+              priceDiv = el("div", "price tnum");
+              var pa3 = el("a"); pa3.href = "https://www.tcgplayer.com/search/yugioh/product?q=" + encodeURIComponent(s.set_code); pa3.target = "_blank"; pa3.rel = "noopener noreferrer";
+              pa3.textContent = "Xem giá"; pa3.style.cssText = "color:var(--accent);font-size:12px"; pa3.title = "Xem trên TCGPlayer";
+              priceDiv.appendChild(pa3);
               bestPrice = 0;
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
