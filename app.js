@@ -451,7 +451,7 @@
   function setMode(m) { mode = m; Array.prototype.forEach.call($("modeSeg").querySelectorAll("button"), function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-mode") === m ? "true" : "false"); }); $("q").placeholder = m === "code" ? "Mã bộ (vd: RA01-EN001 / YAS3-JP003)" : "Tên thẻ — Anh hoặc Nhật (青眼の白龍)"; }
   $("modeSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-mode]"); if (!b) return; setMode(b.getAttribute("data-mode")); $("q").value = ""; $("searchBody").innerHTML = '<p class="hint center">' + (mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.") + "</p>"; });
 
-  function imgFade(img) { img.classList.add("img-fade"); img.onload = function () { this.classList.add("loaded"); }; return img; }
+  function imgFade(img) { img.classList.add("img-fade"); if (img.complete && img.naturalWidth) { img.classList.add("loaded"); } else { img.onload = function () { this.classList.add("loaded"); }; } return img; }
   function renderResults(list) {
     currentResults = list; var body = $("searchBody"); body.innerHTML = "";
     if (!list.length) { body.appendChild(hintCenter("Không tìm thấy thẻ khớp. Thử tên khác hoặc kiểm tra chính tả.")); return; }
