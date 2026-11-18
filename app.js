@@ -224,6 +224,37 @@
   var tabs = [{ btn: "t-search", panel: "p-search" }, { btn: "t-collection", panel: "p-collection" }, { btn: "t-scan", panel: "p-scan" }];
   function showTab(id) { tabs.forEach(function (t) { var s = t.panel === id; $(t.btn).setAttribute("aria-selected", s ? "true" : "false"); $(t.panel).hidden = !s; }); try { localStorage.setItem("ygo_tab", id); } catch (e) {} if (id === "p-collection") renderCollection(); }
   function saveLast(m, qq) { try { localStorage.setItem("ygo_lastq", JSON.stringify({ mode: m, q: qq })); } catch (e) {} }
+
+  // ============ LỊCH SỬ TÌM KIẾM ============
+  var HIST_KEY = "ygo_search_history", HIST_MAX = 12;
+  function getHistory() { try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; } }
+  function addHistory(m, q, name) {
+    if (!q) return;
+    var h = getHistory().filter(function (x) { return x.q !== q; });
+    h.unshift({ mode: m, q: q, name: name || q, t: Date.now() });
+    if (h.length > HIST_MAX) h = h.slice(0, HIST_MAX);
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {}
+  }
+  function clearHistory() { try { localStorage.removeItem(HIST_KEY); } catch (e) {} }
+  function showHistory() {
+    var h = getHistory(); if (!h.length) return;
+    var body = $("searchBody");
+    var wrap = el("div", "search-history");
+    var hdr = el("div"); hdr.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-bottom:4px";
+    hdr.appendChild(el("span", "note", "Tìm gần đây"));
+    var clr = el("button", "history-clear", "Xóa"); clr.addEventListener("click", function () { clearHistory(); body.innerHTML = ""; body.appendChild(hintCenter(mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.")); });
+    hdr.appendChild(clr); wrap.appendChild(hdr);
+    h.forEach(function (item) {
+      var row = el("button", "history-item");
+      var icon = el("span", "h-icon"); icon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>';
+      var text = el("span", "h-text", item.name || item.q);
+      var badge = el("span", "h-mode", item.mode === "code" ? "mã bộ" : "tên");
+      row.appendChild(icon); row.appendChild(text); row.appendChild(badge);
+      row.addEventListener("click", function () { setMode(item.mode); $("q").value = item.q; doSearch(item.q); });
+      wrap.appendChild(row);
+    });
+    body.innerHTML = ""; body.appendChild(wrap);
+  }
   tabs.forEach(function (t) { $(t.btn).addEventListener("click", function () { showTab(t.panel); }); });
   (function () { try { var s = localStorage.getItem(LS_THEME); if (s) document.documentElement.setAttribute("data-theme", s); } catch (e) {} })();
   $("themeBtn").addEventListener("click", function () { var cur = document.documentElement.getAttribute("data-theme"); var isDark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches; var next = isDark ? "light" : "dark"; document.documentElement.setAttribute("data-theme", next); try { localStorage.setItem(LS_THEME, next); } catch (e) {} });
@@ -388,8 +419,8 @@
     var sheet = buildSheet();
     sheet.appendChild(el("h2", null, "Phân loại foil / rarity"));
     sheet.appendChild(el("p", "note", "Nghiêng thẻ dưới ánh sáng, xem vùng nào phản quang và màu chữ tên để đoán loại:"));
-    var list = el("div"); list.style.cssText = "display:flex;flex-direction:column;gap:11px";
-    FOIL_GUIDE.forEach(function (g) { var row = el("div"); var t = el("div"); t.style.cssText = "font-weight:700;font-size:14px"; t.appendChild(rarChip(g.r.replace(/\s*\(.*/, ""))); t.appendChild(document.createTextNode(" " + g.r)); row.appendChild(t); row.appendChild(el("div", "note", g.d)); list.appendChild(row); });
+    var list = el("div", "foil-guide-list");
+    FOIL_GUIDE.forEach(function (g) { var row = el("div"); var t = el("div", "foil-guide-label"); t.appendChild(rarChip(g.r.replace(/\s*\(.*/, ""))); t.appendChild(document.createTextNode(" " + g.r)); row.appendChild(t); row.appendChild(el("div", "note", g.d)); list.appendChild(row); });
     sheet.appendChild(list);
     sheet.appendChild(el("p", "note", "Lưu ý: cách gọi rarity thay đổi theo bộ/khu vực (TCG, OCG, Asian). Muốn chắc chắn, tra bằng mã bộ ở góc phải dưới lá."));
     var close = el("button", "btn", "Đóng"); close.addEventListener("click", closeSheet); sheet.appendChild(close);
@@ -409,10 +440,10 @@
     sheet.appendChild(el("h2", null, "Dữ liệu & cập nhật"));
     var jaAt = ""; try { var t0 = Number(localStorage.getItem("ygo_ja_at") || 0); if (t0) jaAt = new Date(t0).toLocaleDateString("vi-VN"); } catch (e) {}
     sheet.appendChild(el("p", "note", "Thông tin thẻ & giá lấy trực tiếp từ web mỗi lần tra nên tự cập nhật; thẻ mới tự xuất hiện." + (jaAt ? " Kho tên Nhật cập nhật: " + jaAt + "." : "")));
-    var refBtn = el("button", "btn ghost", "↻ Làm mới dữ liệu & bản app"); refBtn.style.width = "100%";
+    var refBtn = el("button", "btn ghost full-width", "↻ Làm mới dữ liệu & bản app");
     refBtn.addEventListener("click", function () { refBtn.disabled = true; refBtn.textContent = "Đang làm mới…"; var p = (window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve()); p.catch(function () {}).then(function () { try { localStorage.removeItem("ygo_ja_at"); } catch (e) {} setTimeout(function () { location.reload(); }, 400); }); });
     sheet.appendChild(refBtn);
-    var hr0 = el("div"); hr0.style.cssText = "height:1px;background:var(--line);margin:4px 0"; sheet.appendChild(hr0);
+    var hr0 = el("div", "hr-sep"); sheet.appendChild(hr0);
 
     sheet.appendChild(el("h2", null, "Đồng bộ nhiều máy"));
     var syncState = Store.mode === "cloud" ? ("Đang đồng bộ" + (Store.user ? " · " + (Store.user.email || "") : "")) : (cloudConfigured() ? "Đã cấu hình — vào tab Bộ sưu tập để đăng nhập" : "Chưa bật (chỉ lưu trên máy này)");
@@ -422,7 +453,7 @@
     var sbKeyF = settingsField("Supabase key (anon eyJ… hoặc publishable sb_publishable_…)", (function () { try { return localStorage.getItem("ygo_sb_key") || CFG.supabaseAnonKey || ""; } catch (e) { return CFG.supabaseAnonKey || ""; } })(), "password");
     sheet.appendChild(sbUrlF); sheet.appendChild(sbKeyF);
     sheet.appendChild(el("p", "note", "Supabase → Settings → API Keys: dùng “Publishable key” (sb_publishable_…) hoặc legacy “anon public” (eyJ…). TUYỆT ĐỐI không dùng Secret/service_role."));
-    var sbSave = el("button", "btn", "Lưu & bật đồng bộ"); sbSave.style.width = "100%";
+    var sbSave = el("button", "btn full-width", "Lưu & bật đồng bộ");
     sbSave.addEventListener("click", function () {
       var u = sbUrlF._input.value.trim(), k = sbKeyF._input.value.trim();
       try { u ? localStorage.setItem("ygo_sb_url", u) : localStorage.removeItem("ygo_sb_url"); k ? localStorage.setItem("ygo_sb_key", k) : localStorage.removeItem("ygo_sb_key"); } catch (e) {}
@@ -431,7 +462,7 @@
     sheet.appendChild(sbSave);
 
     // --- Dịch tiếng Việt ---
-    var hr = el("div"); hr.style.cssText = "height:1px;background:var(--line);margin:4px 0"; sheet.appendChild(hr);
+    var hr = el("div", "hr-sep"); sheet.appendChild(hr);
     sheet.appendChild(el("h2", null, "Dịch tiếng Việt"));
     sheet.appendChild(el("p", "note", "Đang dùng: " + VI.activeName() + ". Ưu tiên Claude → Gemini → dịch máy. Để trống cả hai key = dịch máy miễn phí."));
     var aKeyF = settingsField("Claude API key (Anthropic)", s.anthropic, "password");
@@ -490,6 +521,7 @@
     searchByName(q).then(renderResults).catch(function () { body.innerHTML = ""; body.appendChild(hintCenter("Lỗi kết nối. Kiểm tra mạng rồi thử lại.")); });
   }
   $("goBtn").addEventListener("click", function () { closeSuggest(); doSearch($("q").value); });
+  $("q").addEventListener("focus", function () { if (!this.value.trim()) showHistory(); });
   $("q").addEventListener("keydown", function (e) {
     if (e.key === "Enter") { closeSuggest(); doSearch(this.value); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); navSuggest(e.key === "ArrowDown" ? 1 : -1); return; }
@@ -762,7 +794,7 @@
   }
   function renderJPOnly(cd) {
     var body = $("searchBody"); body.innerHTML = "";
-    var back = el("button", "btn ghost sm", "‹ Quay lại"); back.style.alignSelf = "flex-start"; back.addEventListener("click", function () { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); }); body.appendChild(back);
+    var back = el("button", "btn ghost sm back-btn", "‹ Quay lại"); back.addEventListener("click", function () { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); }); body.appendChild(back);
     var loc = cd.ja || cd.ae || cd.en || {};
     body.appendChild(el("h2", null, loc.name || "Thẻ OCG"));
     var sl = el("div", "stat-line");
@@ -800,7 +832,7 @@
   function priceBlock(c) {
     var info = avgPrice(c); if (!info) return null;
     var wrap = el("div");
-    var chip = el("span", "tag"); chip.style.cssText = "font-size:14px;padding:6px 14px;font-weight:600";
+    var chip = el("span", "tag price-chip");
     chip.textContent = "Giá tham khảo: " + money(info.avg);
     wrap.appendChild(chip);
     wrap.appendChild(el("p", "note", "Trung bình " + info.count + " nguồn (TCGplayer, eBay, Amazon, CoolStuffInc)."));
@@ -883,7 +915,7 @@
   }
 
   function jpPriceLinks(code) {
-    var wrap = el("div"); wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:6px";
+    var wrap = el("div", "jp-price-links");
     [["TCG Republic", "https://tcgrepublic.com/product/text_search.html?q=" + encodeURIComponent(code) + "&Category=34"],
      ["Yuyu-tei (遊々亭)", "https://yuyu-tei.jp/sell/ygo/s/search?search_word=" + encodeURIComponent(code)],
      ["Yahoo! Auctions JP", "https://auctions.yahoo.co.jp/search/search?p=" + encodeURIComponent(code)]].forEach(function (s) {
@@ -892,7 +924,27 @@
     return wrap;
   }
 
+  // ---- Rarity matching helpers (shared by TCG & OCG foil merge) ----
+  var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
+  function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
+  function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
+  function matchRepPrice(repMap, rarity) {
+    if (!rarity) return null;
+    var rup = rarity.toUpperCase(), brup = baseRarity(rarity);
+    for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
+    var baseHit = null, baseHitLen = 9999;
+    for (var k2 in repMap) { if (baseRarity(k2) === brup && k2.length < baseHitLen) { baseHit = repMap[k2]; baseHitLen = k2.length; } }
+    if (baseHit) return baseHit;
+    var best = null, bestLen = 0;
+    for (var k3 in repMap) { var bk = baseRarity(k3); if (bk.indexOf(brup) >= 0 || brup.indexOf(bk) >= 0) { if (bk.length > bestLen) { best = repMap[k3]; bestLen = bk.length; } } }
+    if (best) return best;
+    var alias = RARITY_ALIAS[brup];
+    if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
+    return null;
+  }
+
   function renderDetail(c, matchCode, extra) {
+    addHistory(mode, $("q").value || c.name, c.name);
     var body = $("searchBody"); body.innerHTML = "";
     var back = el("button", "btn ghost sm back-btn", "‹ Quay lại");
     back.addEventListener("click", function () { if (currentResults.length) renderResults(currentResults); else { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); } });
@@ -987,24 +1039,6 @@
           if (!hasRep && !hasTcgStatic && !hasTcgP) { enNote.innerHTML = "Bấm <b>Xem giá</b> để tra trên TCGPlayer."; return; }
           if (!hasRep && !hasTcgStatic) { enNote.innerHTML = "Giá tham khảo từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết."; return; }
           // Rebuild: gộp tất cả foil từ TCGPlayer static + YGOPRODeck + TCG Republic
-          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
-          function normRarity(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
-          function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
-          function matchRepPrice(rarity) {
-            if (!rarity) return null;
-            var rup = rarity.toUpperCase(), brup = baseRarity(rarity);
-            for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
-            var baseHit = null, baseHitLen = 9999;
-            for (var k2 in repMap) { if (baseRarity(k2) === brup && k2.length < baseHitLen) { baseHit = repMap[k2]; baseHitLen = k2.length; } }
-            if (baseHit) return baseHit;
-            var best = null, bestLen = 0;
-            for (var k3 in repMap) { var bk = baseRarity(k3); if (bk.indexOf(brup) >= 0 || brup.indexOf(bk) >= 0) { if (bk.length > bestLen) { best = repMap[k3]; bestLen = bk.length; } } }
-            if (best) return best;
-            var alias = RARITY_ALIAS[brup];
-            if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
-            return null;
-          }
-          // Gộp tất cả foil: TCGPlayer static là nguồn chính (đầy đủ nhất)
           var allFoils = []; // [{rarity, tcg:{m,l,id}, rep:{price,url,thumb,label}, setName}]
           var seenRar = {};
           // 1) Từ TCGPlayer static
@@ -1012,7 +1046,7 @@
             tcgEntries.forEach(function (te) {
               var rar = te.r || "";
               seenRar[rar.toUpperCase()] = true;
-              var rep = matchRepPrice(rar);
+              var rep = matchRepPrice(repMap, rar);
               if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
               allFoils.push({ rarity: rar, tcg: te, rep: rep, setName: (exact[0] || {}).set_name || "" });
             });
@@ -1021,7 +1055,7 @@
           exact.forEach(function (s) {
             if (s.set_rarity && !seenRar[(s.set_rarity || "").toUpperCase()]) {
               seenRar[(s.set_rarity || "").toUpperCase()] = true;
-              var rep = matchRepPrice(s.set_rarity);
+              var rep = matchRepPrice(repMap, s.set_rarity);
               if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
               allFoils.push({ rarity: s.set_rarity, tcg: null, rep: rep, setName: s.set_name || "", ygoPdPrice: Number(s.set_price) || 0 });
             }
@@ -1093,34 +1127,6 @@
         Promise.all([pYugi, pTcgRep]).then(function (results) {
           var info = results[0], repMap = results[1] || {};
           listWrap.innerHTML = "";
-          // Hàm khớp rarity từ Yugipedia với key TCG Republic
-          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
-          function normRarity(s) { return s.toUpperCase().replace(/['’]/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
-          function baseRarity(s) { return normRarity(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
-          function matchRepPrice(rarity) {
-            if (!rarity) return null;
-            var rup = rarity.toUpperCase();
-            var brup = baseRarity(rarity);
-            // 1) exact match on original
-            for (var k in repMap) { if (k.toUpperCase() === rup) return repMap[k]; }
-            // 2) exact match on base: "Secret" == "Secret"; nếu nhiều key cùng base, chọn key ngắn nhất (bản thường, ko có ngoặc)
-            var baseHit = null, baseHitLen = 9999;
-            for (var k2 in repMap) { if (baseRarity(k2) === brup && k2.length < baseHitLen) { baseHit = repMap[k2]; baseHitLen = k2.length; } }
-            if (baseHit) return baseHit;
-            // 3) substring on base, longest base key wins (most specific)
-            var best = null, bestLen = 0;
-            for (var k3 in repMap) {
-              var bk = baseRarity(k3);
-              if (bk.indexOf(brup) >= 0 || brup.indexOf(bk) >= 0) {
-                if (bk.length > bestLen) { best = repMap[k3]; bestLen = bk.length; }
-              }
-            }
-            if (best) return best;
-            // 4) alias: Common <-> Normal
-            var alias = RARITY_ALIAS[brup];
-            if (alias) { for (var k4 in repMap) { if (baseRarity(k4) === alias) return repMap[k4]; } }
-            return null;
-          }
           function foilRowWithPrice(s, repInfo) {
             var row = el("div", "set-row match foil-row");
             // Ảnh foil từ TCG Republic
@@ -1158,7 +1164,7 @@
           if (info && info.rarities.length) {
             var matchedRepKeys = {};
             info.rarities.forEach(function (rr) {
-              var rep = matchRepPrice(rr);
+              var rep = matchRepPrice(repMap, rr);
               if (rep && rep.label) matchedRepKeys[rep.label] = true;
               listWrap.appendChild(foilRowWithPrice({ set_code: qcode, set_name: info.setName || "", set_rarity: rr, set_price: 0 }, rep));
             });
@@ -1541,4 +1547,10 @@
       }).catch(function () {});
     });
   }
+
+  // ============ OFFLINE INDICATOR ============
+  function updateOnline() { var bar = $("offlineBar"); if (bar) { navigator.onLine ? bar.classList.remove("show") : bar.classList.add("show"); } }
+  window.addEventListener("online", updateOnline);
+  window.addEventListener("offline", updateOnline);
+  updateOnline();
 })();
