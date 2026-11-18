@@ -221,7 +221,8 @@
   })();
 
   // ============ TABS / THEME ============
-  var tabs = [{ btn: "t-search", panel: "p-search" }, { btn: "t-collection", panel: "p-collection" }, { btn: "t-scan", panel: "p-scan" }];
+  var tabs = [{ btn: "t-search", panel: "p-search" }, { btn: "t-collection", panel: "p-collection" }];
+  // Quét thẻ tạm ẩn — bật lại: thêm { btn: "t-scan", panel: "p-scan" } và bỏ hidden trong HTML
   function showTab(id) { tabs.forEach(function (t) { var s = t.panel === id; $(t.btn).setAttribute("aria-selected", s ? "true" : "false"); $(t.panel).hidden = !s; }); try { localStorage.setItem("ygo_tab", id); } catch (e) {} if (id === "p-collection") renderCollection(); }
   function saveLast(m, qq) { try { localStorage.setItem("ygo_lastq", JSON.stringify({ mode: m, q: qq })); } catch (e) {} }
 
@@ -439,7 +440,9 @@
     // --- Dữ liệu & cập nhật ---
     sheet.appendChild(el("h2", null, "Dữ liệu & cập nhật"));
     var jaAt = ""; try { var t0 = Number(localStorage.getItem("ygo_ja_at") || 0); if (t0) jaAt = new Date(t0).toLocaleDateString("vi-VN"); } catch (e) {}
-    sheet.appendChild(el("p", "note", "Thông tin thẻ & giá lấy trực tiếp từ web mỗi lần tra nên tự cập nhật; thẻ mới tự xuất hiện." + (jaAt ? " Kho tên Nhật cập nhật: " + jaAt + "." : "")));
+    var auAt = ""; try { var ta = Number(localStorage.getItem("ygo_auto_update") || 0); if (ta) auAt = new Date(ta).toLocaleString("vi-VN"); } catch (e) {}
+    var knownSets = 0; try { knownSets = Object.keys(JSON.parse(localStorage.getItem("ygo_known_sets") || "{}")).length; } catch (e) {}
+    sheet.appendChild(el("p", "note", "Tự động cập nhật mã bài mới, hình ảnh & foil mỗi 6 giờ." + (auAt ? " Lần cuối: " + auAt + "." : "") + (knownSets ? " Đang theo dõi " + knownSets + " bộ bài." : "") + (jaAt ? " Kho tên Nhật: " + jaAt + "." : "")));
     var refBtn = el("button", "btn ghost full-width", "↻ Làm mới dữ liệu & bản app");
     refBtn.addEventListener("click", function () { refBtn.disabled = true; refBtn.textContent = "Đang làm mới…"; var p = (window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve()); p.catch(function () {}).then(function () { try { localStorage.removeItem("ygo_ja_at"); } catch (e) {} setTimeout(function () { location.reload(); }, 400); }); });
     sheet.appendChild(refBtn);
@@ -1521,7 +1524,7 @@
   // Khôi phục đúng tab + nội dung tra cứu khi refresh (không nhảy về trang đầu)
   (function restoreView() {
     var tab = "p-search";
-    try { var t = localStorage.getItem("ygo_tab"); if (["p-search", "p-collection", "p-scan"].indexOf(t) >= 0) tab = t; } catch (e) {}
+    try { var t = localStorage.getItem("ygo_tab"); if (["p-search", "p-collection"].indexOf(t) >= 0) tab = t; } catch (e) {}
     var lq = null; try { lq = JSON.parse(localStorage.getItem("ygo_lastq") || "null"); } catch (e) {}
     if (lq && lq.q) { setMode(lq.mode === "code" ? "code" : "name"); $("q").value = lq.q; }
     showTab(tab);
@@ -1547,6 +1550,84 @@
       }).catch(function () {});
     });
   }
+
+  // ============ TỰ ĐỘNG CẬP NHẬT MÃ BÀI MỚI + ẢNH + FOIL ============
+  (function autoUpdate() {
+    if (!navigator.onLine) return;
+    var AU_KEY = "ygo_auto_update", AU_INTERVAL = 6 * 3600 * 1000; // 6 giờ
+    var last = 0; try { last = Number(localStorage.getItem(AU_KEY)) || 0; } catch (e) {}
+    if (Date.now() - last < AU_INTERVAL) return;
+
+    // 1) Lấy danh sách bộ mới nhất từ YGOPRODeck (background)
+    var newSetsFound = [];
+    fetch("https://db.ygoprodeck.com/api/v7/cardsets.php")
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (sets) {
+        if (!sets || !sets.length) return;
+        // So sánh với danh sách đã biết
+        var known = {}; try { var k = JSON.parse(localStorage.getItem("ygo_known_sets") || "{}"); known = k; } catch (e) {}
+        var knownCount = Object.keys(known).length;
+        var updated = {};
+        sets.forEach(function (s) {
+          var code = (s.set_code || "").toUpperCase();
+          if (code) updated[code] = { name: s.set_name || "", date: s.tcg_date || s.set_date || "", num: s.num_of_cards || 0 };
+        });
+        // Tìm bộ mới (chỉ khi đã có dữ liệu cũ để so sánh)
+        if (knownCount > 0) {
+          for (var c in updated) {
+            if (!known[c]) newSetsFound.push({ code: c, name: updated[c].name, date: updated[c].date });
+          }
+          // Hiện thông báo nếu có bộ mới
+          if (newSetsFound.length > 0 && newSetsFound.length <= 20) {
+            var names = newSetsFound.slice(0, 5).map(function (s) { return s.name || s.code; });
+            var msg = "🆕 " + newSetsFound.length + " bộ mới: " + names.join(", ") + (newSetsFound.length > 5 ? "…" : "");
+            setTimeout(function () { toast(msg); }, 2000);
+          }
+        }
+        // Lưu danh sách hiện tại
+        try { localStorage.setItem("ygo_known_sets", JSON.stringify(updated)); } catch (e) {}
+
+        // 2) Pre-cache ảnh thẻ trong bộ sưu tập (nền)
+        try {
+          var coll = JSON.parse(localStorage.getItem(LS_LOCAL) || "{}");
+          var imgIds = [];
+          for (var key in coll) {
+            var it = coll[key]; if (it && it.cardId) imgIds.push(it.cardId);
+          }
+          // Chỉ cache tối đa 30 ảnh mỗi lần
+          var toCache = imgIds.slice(0, 30);
+          if (toCache.length && window.caches) {
+            caches.open("ygo-pwa-v53").then(function (cache) {
+              toCache.forEach(function (id) {
+                var url = IMG + id + ".jpg";
+                cache.match(url).then(function (hit) {
+                  if (!hit) fetch(url, { mode: "cors" }).then(function (res) { if (res.ok) cache.put(url, res); }).catch(function () {});
+                });
+              });
+            }).catch(function () {});
+          }
+        } catch (e) {}
+
+        // 3) Cập nhật foil/rarity mới cho các thẻ trong bộ sưu tập
+        try {
+          var coll2 = JSON.parse(localStorage.getItem(LS_LOCAL) || "{}");
+          var codes = {}; // {abbr: true}
+          for (var k2 in coll2) {
+            var sc2 = coll2[k2] && coll2[k2].setCode;
+            if (sc2) { var ab = sc2.split("-")[0].toUpperCase(); codes[ab] = true; }
+          }
+          // Làm mới cache giá/foil cho các bộ trong bộ sưu tập (stale-while-revalidate trong SW xử lý)
+          var abbrs = Object.keys(codes);
+          abbrs.slice(0, 10).forEach(function (ab) {
+            fetch("./prices/" + ab.replace("/", "_") + ".json", { cache: "no-cache" }).catch(function () {});
+          });
+        } catch (e) {}
+
+        // Đánh dấu đã cập nhật
+        try { localStorage.setItem(AU_KEY, String(Date.now())); } catch (e) {}
+      })
+      .catch(function () {}); // Lỗi mạng thì thôi, lần sau thử lại
+  })();
 
   // ============ OFFLINE INDICATOR ============
   function updateOnline() { var bar = $("offlineBar"); if (bar) { navigator.onLine ? bar.classList.remove("show") : bar.classList.add("show"); } }

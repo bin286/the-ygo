@@ -358,7 +358,8 @@
     <button class="tab" role="tab" id="t-collection" aria-selected="false" aria-controls="p-collection">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Bộ sưu tập
     </button>
-    <button class="tab" role="tab" id="t-scan" aria-selected="false" aria-controls="p-scan">
+    <!-- Quét thẻ: tạm ẩn, bật lại bằng cách bỏ hidden -->
+    <button class="tab" role="tab" id="t-scan" aria-selected="false" aria-controls="p-scan" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V6a2 2 0 0 1 2-2h2M17 4h2a2 2 0 0 1 2 2v3M21 15v3a2 2 0 0 1-2 2h-2M7 20H5a2 2 0 0 1-2-2v-3"/><circle cx="12" cy="12" r="3"/></svg>Quét thẻ
     </button>
   </div>
@@ -403,7 +404,8 @@
     <p class="note" id="valueNote"></p>
   </section>
 
-  <section class="panel" id="p-scan" role="tabpanel" aria-labelledby="t-scan" hidden>
+  <!-- Quét thẻ: tạm ẩn -->
+  <section class="panel" id="p-scan" role="tabpanel" aria-labelledby="t-scan" hidden style="display:none">
     <div class="scan-stage">
       <svg class="cam-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       <div>
