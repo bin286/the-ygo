@@ -105,7 +105,7 @@
     var vals = pts.map(function (p) { return p.p; }); var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals); var rng = Math.max(1e-6, max - min);
     var step = (w - 2 * pad) / Math.max(1, pts.length - 1);
     var d = pts.map(function (p, i) { return (i ? "L" : "M") + (pad + i * step).toFixed(1) + "," + (pad + (h - 2 * pad) * (1 - (p.p - min) / rng)).toFixed(1); }).join(" ");
-    var svg = document.createElementNS(ns, "svg"); svg.setAttribute("viewBox", "0 0 " + w + " " + h); svg.setAttribute("width", "100%"); svg.style.maxWidth = w + "px"; svg.style.height = h + "px"; svg.style.display = "block";
+    var svg = document.createElementNS(ns, "svg"); svg.setAttribute("viewBox", "0 0 " + w + " " + h); svg.setAttribute("width", "100%"); svg.setAttribute("class", "sparkline"); svg.style.maxWidth = w + "px"; svg.style.height = h + "px";
     var path = document.createElementNS(ns, "path"); path.setAttribute("d", d); path.setAttribute("fill", "none"); path.setAttribute("stroke", "var(--gold)"); path.setAttribute("stroke-width", "2"); path.setAttribute("stroke-linejoin", "round"); svg.appendChild(path);
     var last = pts[pts.length - 1]; var cx = pad + (pts.length - 1) * step, cy = pad + (h - 2 * pad) * (1 - (last.p - min) / rng);
     var dot = document.createElementNS(ns, "circle"); dot.setAttribute("cx", cx.toFixed(1)); dot.setAttribute("cy", cy.toFixed(1)); dot.setAttribute("r", "3"); dot.setAttribute("fill", "var(--gold)"); svg.appendChild(dot);
@@ -241,7 +241,7 @@
     var h = getHistory(); if (!h.length) return;
     var body = $("searchBody");
     var wrap = el("div", "search-history");
-    var hdr = el("div"); hdr.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-bottom:4px";
+    var hdr = el("div", "history-header");
     hdr.appendChild(el("span", "note", "Tìm gần đây"));
     var clr = el("button", "history-clear", "Xóa"); clr.addEventListener("click", function () { clearHistory(); body.innerHTML = ""; body.appendChild(hintCenter(mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.")); });
     hdr.appendChild(clr); wrap.appendChild(hdr);
@@ -970,7 +970,7 @@
       var VI_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:5px"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1m14 20-5-10-5 10m2-4h6"/></svg>';
       function setBtn(open) { viToggle.innerHTML = VI_ICON + (open ? "Ẩn bản dịch" : "Dịch tiếng Việt"); }
       setBtn(false);
-      var viBox = el("div", "desc"); viBox.style.marginTop = "4px"; viBox.hidden = true;
+      var viBox = el("div", "desc vi-box"); viBox.hidden = true;
       var loaded = false, translating = false;
       viToggle.addEventListener("click", function () {
         if (!viBox.hidden) { viBox.hidden = true; setBtn(false); return; }   // đang mở -> đóng
@@ -979,7 +979,7 @@
         translating = true; viBox.innerHTML = '<span class="spin"></span> Đang dịch…';
         VI.translate(c.id, c.desc).then(function (res) {
           translating = false; viBox.innerHTML = "";
-          if (res && res.vi) { loaded = true; var tag = el("span", "tag lang", "VI · " + res.src); tag.style.marginRight = "6px"; viBox.appendChild(tag); viBox.appendChild(document.createTextNode(res.vi)); }
+          if (res && res.vi) { loaded = true; var tag = el("span", "tag lang vi-tag", "VI · " + res.src); viBox.appendChild(tag); viBox.appendChild(document.createTextNode(res.vi)); }
           else { var b = el("button", "btn ghost sm", "Thử lại"); b.onclick = function () { viBox.hidden = true; viToggle.click(); }; viBox.appendChild(b); }
         }).catch(function () { translating = false; viBox.innerHTML = ""; var b = el("button", "btn ghost sm", "Thử lại"); b.onclick = function () { viBox.hidden = true; viToggle.click(); }; viBox.appendChild(b); });
       });
@@ -1597,7 +1597,7 @@
           // Chỉ cache tối đa 30 ảnh mỗi lần
           var toCache = imgIds.slice(0, 30);
           if (toCache.length && window.caches) {
-            caches.open("ygo-pwa-v53").then(function (cache) {
+            caches.keys().then(function (ks) { var cn = "ygo-pwa-v54"; for (var ki = 0; ki < ks.length; ki++) { if (ks[ki].indexOf("ygo-pwa-") === 0) { cn = ks[ki]; break; } } return caches.open(cn); }).then(function (cache) {
               toCache.forEach(function (id) {
                 var url = IMG + id + ".jpg";
                 cache.match(url).then(function (hit) {
