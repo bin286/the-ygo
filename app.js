@@ -966,8 +966,9 @@
     if (extra && extra.codeNote) { var cn = el("div", "note back-btn"); cn.innerHTML = "🔎 " + escapeHtml(extra.codeNote); body.appendChild(cn); }
     var imgId = (c.card_images && c.card_images[0] && c.card_images[0].id) || c.id;
     var top = el("div", "detail-top");
-    var img = el("img"); img.src = IMG_FULL + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.src = IMG + imgId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; }; imgFade(img);
-    img.addEventListener("click", function () { openLightbox(IMG_FULL + imgId + ".jpg", c.name); });
+    var img = el("img"); img.id = "detailImg"; img.src = IMG_FULL + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.src = IMG + imgId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; }; imgFade(img);
+    img.setAttribute("data-default", IMG_FULL + imgId + ".jpg");
+    img.addEventListener("click", function () { openLightbox(this.getAttribute("data-full") || this.src, c.name); });
     var info = el("div", "detail-info"); info.appendChild(el("h2", null, c.name));
     var sl = el("div", "stat-line");
     if (extra && extra.jpName) addStat(sl, "Tên Nhật", extra.jpName);
@@ -1093,12 +1094,26 @@
             return pa - pb;
           });
           elist.innerHTML = "";
+          // Cập nhật ảnh chính thành ảnh foil đầu tiên có thumbnail
+          var mainImg = $("detailImg");
+          var firstFoilThumb = null;
+          allFoils.forEach(function (f) { if (!firstFoilThumb && f.rep && f.rep.thumb) firstFoilThumb = f.rep.thumb; });
+          if (mainImg && firstFoilThumb) {
+            var bigUrl = firstFoilThumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
+            mainImg.src = bigUrl; mainImg.setAttribute("data-full", bigUrl);
+            mainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+          }
           allFoils.forEach(function (f) {
             var row = el("div", "set-row match foil-row");
             if (f.rep && f.rep.thumb) {
               var timg = el("img", "foil-thumb"); timg.src = f.rep.thumb; timg.alt = f.rarity;
-              timg.title = "Bấm để xem ảnh lớn"; imgFade(timg);
-              timg.addEventListener("click", (function (t) { return function () { window.open(t.replace(".l2_thumbnail.jpg", ""), "_blank"); }; })(f.rep.thumb));
+              timg.title = "Bấm để xem ảnh foil"; imgFade(timg);
+              var foilBig = f.rep.thumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
+              timg.addEventListener("click", (function (big, rar) { return function () {
+                // Đổi ảnh chính thành ảnh foil này
+                if (mainImg) { mainImg.src = big; mainImg.setAttribute("data-full", big); mainImg.alt = rar; }
+                openLightbox(big, rar);
+              }; })(foilBig, f.rarity));
               row.appendChild(timg);
             }
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
@@ -1142,16 +1157,27 @@
         Promise.all([pYugi, pTcgRep]).then(function (results) {
           var info = results[0], repMap = results[1] || {};
           listWrap.innerHTML = "";
+          // Cập nhật ảnh chính thành ảnh foil đầu tiên (OCG)
+          var jpMainImg = $("detailImg");
+          var jpFirstThumb = null;
+          Object.keys(repMap).forEach(function (k) { if (!jpFirstThumb && repMap[k].thumb) jpFirstThumb = repMap[k].thumb; });
+          if (jpMainImg && jpFirstThumb) {
+            var jpBigFirst = jpFirstThumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
+            jpMainImg.src = jpBigFirst; jpMainImg.setAttribute("data-full", jpBigFirst);
+            jpMainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+          }
           function foilRowWithPrice(s, repInfo) {
             var row = el("div", "set-row match foil-row");
             // Ảnh foil từ TCG Republic
             if (repInfo && repInfo.thumb) {
               var timg = el("img", "foil-thumb"); timg.src = repInfo.thumb; timg.alt = s.set_rarity || "";
-              timg.title = "Bấm để xem ảnh lớn"; imgFade(timg);
-              timg.addEventListener("click", function () {
-                var big = repInfo.thumb.replace(".l2_thumbnail.jpg", "");
-                window.open(big, "_blank");
-              });
+              timg.title = "Bấm để xem ảnh foil"; imgFade(timg);
+              var jpBig = repInfo.thumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
+              timg.addEventListener("click", (function (big, rar) { return function () {
+                var mi = $("detailImg");
+                if (mi) { mi.src = big; mi.setAttribute("data-full", big); mi.alt = rar; }
+                openLightbox(big, rar);
+              }; })(jpBig, s.set_rarity || ""));
               row.appendChild(timg);
             }
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(s.set_code)); if (s.set_rarity) sc.appendChild(rarChip(s.set_rarity));
