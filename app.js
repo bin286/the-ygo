@@ -844,7 +844,7 @@
       var codesToCheck = prints.slice(0, 10);
       var imgSet = false;
       codesToCheck.forEach(function (p) {
-        tcgRepublicSearch(p.code).then(function (repResult) {
+        tcgRepublicSearch(p.code, loc.name || "").then(function (repResult) {
           var repAll = repResult.all || [];
           if (!repAll.length) {
             // Cập nhật giá thành "—"
@@ -991,7 +991,7 @@
   }
   // Trả về { map: {rarity: bestItem}, all: [tất cả items] }
   // Backward compat: nếu chỉ dùng như object thì .map là giá thấp nhất/rarity
-  function tcgRepublicSearch(code) {
+  function _tcgRepFetch(code) {
     var target = TCGREP_SEARCH + "?q=" + encodeURIComponent(code) + "&Category=34";
     return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(target), 15000)
       .then(function (r) {
@@ -1010,13 +1010,77 @@
           return tcgRepublicDetailPrice(result.map[k].url).then(function (p) {
             if (p > 0) {
               result.map[k].price = p;
-              // Cập nhật giá trong all array
               result.all.forEach(function (item) { if (item.url === result.map[k].url) item.price = p; });
             }
           });
         })).then(function () { return result; });
+      });
+  }
+  // cardName tùy chọn: dùng để fallback search theo tên khi code không tìm thấy
+  function tcgRepublicSearch(code, cardName) {
+    return _tcgRepFetch(code)
+      .catch(function () {
+        // TCG Republic chỉ có thẻ Nhật: thử chuyển EN→JP để lấy ảnh foil
+        var jpCode = code.replace(/-EN(\d)/i, "-JP$1");
+        if (jpCode !== code) return _tcgRepFetch(jpCode);
+        throw new Error("no EN→JP");
+      })
+      .catch(function () {
+        // JP code cũng không có (numbering khác): thử search theo tên + set abbr
+        if (!cardName) return { map: {}, all: [] };
+        var abbr = code.split("-")[0]; // MVP1
+        var jpAbbr = abbr; // set abbreviation thường giống nhau giữa EN & JP
+        return _tcgRepNameSearch(cardName, jpAbbr);
       })
       .catch(function () { return { map: {}, all: [] }; });
+  }
+  // Search TCG Republic bằng tên thẻ, lọc kết quả theo set abbreviation
+  function _tcgRepNameSearch(name, setAbbr) {
+    var q = name + " " + setAbbr;
+    var target = TCGREP_SEARCH + "?q=" + encodeURIComponent(q) + "&Category=34";
+    return fetchWithTimeout(TCGREP_PROXY + encodeURIComponent(target), 15000)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (data) {
+        var html = data && data.contents ? data.contents : "";
+        if (!html || html.length < 500) throw new Error("empty");
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, "text/html");
+        var links = doc.querySelectorAll('a.thumbnail_card[href*="product_page_"]');
+        var map = {}, all = [], seenPid = {};
+        var abbrUp = setAbbr.toUpperCase();
+        var nameUp = name.toUpperCase();
+        links.forEach(function (a) {
+          var alt = (a.querySelector("img") || {}).alt || "";
+          var altUp = alt.toUpperCase();
+          // Phải có cả tên thẻ VÀ set abbreviation trong alt
+          if (altUp.indexOf(abbrUp) < 0 || altUp.indexOf(nameUp) < 0) return;
+          // Tìm mã code trong alt (vd: MVP1-JP002)
+          var codeMatch = alt.match(new RegExp(abbrUp + "-[A-Z]*\\d+", "i"));
+          var matchedCode = codeMatch ? codeMatch[0] : "";
+          // Rarity = phần sau code
+          var rarity = "";
+          if (matchedCode) {
+            var idx = alt.indexOf(matchedCode);
+            rarity = alt.substring(idx + matchedCode.length).trim();
+          }
+          if (!rarity) rarity = "Normal";
+          var priceEl = a.querySelector(".price_with_unit_offscreen");
+          var p = priceEl ? parseFloat(priceEl.textContent.replace(/[^0-9.]/g, "")) : 0;
+          var href = a.getAttribute("href") || "";
+          var fullUrl = href.startsWith("http") ? href : "https://tcgrepublic.com" + href;
+          var pid = (href.match(/product_page_(\d+)/) || [])[1] || "";
+          var imgEl = a.querySelector("img");
+          var thumbSrc = imgEl ? (imgEl.getAttribute("src") || "") : "";
+          if (thumbSrc && !thumbSrc.startsWith("http")) thumbSrc = "https://tcgrepublic.com" + thumbSrc;
+          if (!map[rarity] || (p > 0 && (map[rarity].price <= 0 || p < map[rarity].price))) {
+            map[rarity] = { price: p, url: fullUrl, label: rarity, thumb: thumbSrc };
+          }
+          var ukey = pid || thumbSrc || fullUrl;
+          if (!seenPid[ukey]) { seenPid[ukey] = true; all.push({ price: p, url: fullUrl, label: rarity, thumb: thumbSrc, pid: pid }); }
+        });
+        if (!Object.keys(map).length) throw new Error("no name results");
+        return { map: map, all: all };
+      });
   }
 
   function jpPriceLinks(code) {
@@ -1137,7 +1201,7 @@
         body.appendChild(elist);
         var hasTcgP = exact.some(function (s) { return Number(s.set_price) > 0; });
         var enNote = el("p", "note"); enNote.innerHTML = '<span class="spin"></span> Đang tra giá…'; body.appendChild(enNote);
-        Promise.all([tcgRepublicSearch(qcode), fetchTcgPrices(qcode)]).then(function (results) {
+        Promise.all([tcgRepublicSearch(qcode, c.name), fetchTcgPrices(qcode)]).then(function (results) {
           var repResult = results[0] || { map: {}, all: [] };
           var repMap = repResult.map || {};
           var repAll = repResult.all || [];
@@ -1276,7 +1340,7 @@
         var jnote = el("p", "note"); jnote.innerHTML = '<span class="spin"></span> Đang tra các loại foil của bản ' + escapeHtml(qcode) + '…'; body.appendChild(jnote);
         // Chạy song song: lấy rarity từ Yugipedia + giá từ TCG Republic
         var pYugi = yugiPrintInfo(c.name, qcode);
-        var pTcgRep = tcgRepublicSearch(qcode);
+        var pTcgRep = tcgRepublicSearch(qcode, c.name);
         Promise.all([pYugi, pTcgRep]).then(function (results) {
           var info = results[0], repResult = results[1] || { map: {}, all: [] };
           var repMap = repResult.map || {};
