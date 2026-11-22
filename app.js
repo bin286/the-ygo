@@ -489,6 +489,20 @@
   $("modeSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-mode]"); if (!b) return; setMode(b.getAttribute("data-mode")); $("q").value = ""; $("searchBody").innerHTML = '<p class="hint center">' + (mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.") + "</p>"; });
 
   function imgFade(img) { img.classList.add("img-fade"); if (img.complete && img.naturalWidth) { img.classList.add("loaded"); } else { img.onload = function () { this.classList.add("loaded"); }; } return img; }
+  // Preload ảnh rồi mới swap src — tránh race condition khi ảnh cũ đang load
+  function swapMainImg(target, thumbUrl, fullUrl, fallbackFull, fallbackSmall) {
+    if (!target) return;
+    // Bước 1: hiện thumbnail ngay lập tức (đã chứng minh load được)
+    target.src = thumbUrl; target.setAttribute("data-full", fullUrl);
+    target.classList.add("loaded");
+    // Bước 2: preload full-size, swap khi sẵn
+    var pre = new Image();
+    pre.onload = function () { target.src = fullUrl; };
+    pre.onerror = function () { /* giữ thumbnail, không fallback */ };
+    pre.src = fullUrl;
+    // onerror cho thumbnail (nếu cả thumb cũng lỗi)
+    target.onerror = function () { this.src = fallbackFull; this.setAttribute("data-full", fallbackFull); this.onerror = function () { this.src = fallbackSmall; }; };
+  }
   function openLightbox(src, alt) {
     var lb = document.createElement("div"); lb.className = "lightbox";
     var img = document.createElement("img"); img.src = src; img.alt = alt || "";
@@ -1259,8 +1273,7 @@
           allFoils.forEach(function (f) { if (!firstFoilThumb && f.rep && f.rep.thumb) firstFoilThumb = f.rep.thumb; });
           if (mainImg && firstFoilThumb) {
             var bigUrl = firstFoilThumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
-            mainImg.src = bigUrl; mainImg.setAttribute("data-full", bigUrl);
-            mainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+            swapMainImg(mainImg, firstFoilThumb, bigUrl, IMG_FULL + imgId + ".jpg", IMG + imgId + ".jpg");
           } else if (mainImg && !firstFoilThumb) {
             // Không có ảnh TCG Republic → dùng ảnh TCGPlayer product
             var firstTcgId = null;
@@ -1372,8 +1385,7 @@
           (repResult.all || []).forEach(function (item) { if (!jpFirstThumb && item.thumb) jpFirstThumb = item.thumb; });
           if (jpMainImg && jpFirstThumb) {
             var jpBigFirst = jpFirstThumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
-            jpMainImg.src = jpBigFirst; jpMainImg.setAttribute("data-full", jpBigFirst);
-            jpMainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+            swapMainImg(jpMainImg, jpFirstThumb, jpBigFirst, IMG_FULL + imgId + ".jpg", IMG + imgId + ".jpg");
           }
           function foilRowWithPrice(s, repInfo) {
             var row = el("div", "set-row match foil-row");
