@@ -11,6 +11,7 @@
   var API = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
   var SETINFO = "https://db.ygoprodeck.com/api/v7/cardsetsinfo.php";
   var IMG = "https://images.ygoprodeck.com/images/cards_small/";
+  var IMG_FULL = "https://images.ygoprodeck.com/images/cards/";
   var YGORES = "https://db.ygoresources.com/data";
   var JA_IDX = YGORES + "/idx/card/name/ja";
   var YUGI = "https://yugipedia.com/api.php";
@@ -486,6 +487,16 @@
   $("modeSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-mode]"); if (!b) return; setMode(b.getAttribute("data-mode")); $("q").value = ""; $("searchBody").innerHTML = '<p class="hint center">' + (mode === "code" ? "Gõ mã bộ in ở góc phải dưới lá thẻ (cả mã Nhật -JP) để tra đúng bản phát hành." : "Gõ tên thẻ bằng tiếng Anh hoặc tiếng Nhật để tra rarity, bộ phát hành và giá.") + "</p>"; });
 
   function imgFade(img) { img.classList.add("img-fade"); if (img.complete && img.naturalWidth) { img.classList.add("loaded"); } else { img.onload = function () { this.classList.add("loaded"); }; } return img; }
+  function openLightbox(src, alt) {
+    var lb = document.createElement("div"); lb.className = "lightbox";
+    var img = document.createElement("img"); img.src = src; img.alt = alt || "";
+    var btn = document.createElement("button"); btn.className = "lightbox-close"; btn.innerHTML = "✕";
+    function close() { lb.classList.remove("show"); setTimeout(function () { lb.remove(); }, 260); }
+    btn.addEventListener("click", close);
+    lb.addEventListener("click", function (e) { if (e.target === lb) close(); });
+    lb.appendChild(img); lb.appendChild(btn); document.body.appendChild(lb);
+    requestAnimationFrame(function () { lb.classList.add("show"); });
+  }
   function renderResults(list) {
     currentResults = list; var body = $("searchBody"); body.innerHTML = "";
     if (!list.length) { body.appendChild(hintCenter("Không tìm thấy thẻ khớp. Thử tên khác hoặc kiểm tra chính tả.")); return; }
@@ -955,7 +966,8 @@
     if (extra && extra.codeNote) { var cn = el("div", "note back-btn"); cn.innerHTML = "🔎 " + escapeHtml(extra.codeNote); body.appendChild(cn); }
     var imgId = (c.card_images && c.card_images[0] && c.card_images[0].id) || c.id;
     var top = el("div", "detail-top");
-    var img = el("img"); img.src = IMG + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.style.visibility = "hidden"; }; imgFade(img);
+    var img = el("img"); img.src = IMG_FULL + imgId + ".jpg"; img.alt = c.name; img.onerror = function () { this.src = IMG + imgId + ".jpg"; this.onerror = function () { this.style.visibility = "hidden"; }; }; imgFade(img);
+    img.addEventListener("click", function () { openLightbox(IMG_FULL + imgId + ".jpg", c.name); });
     var info = el("div", "detail-info"); info.appendChild(el("h2", null, c.name));
     var sl = el("div", "stat-line");
     if (extra && extra.jpName) addStat(sl, "Tên Nhật", extra.jpName);
