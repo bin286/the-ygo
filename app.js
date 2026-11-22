@@ -810,25 +810,97 @@
     var body = $("searchBody"); body.innerHTML = "";
     var back = el("button", "btn ghost sm back-btn", "‹ Quay lại"); back.addEventListener("click", function () { body.innerHTML = ""; body.appendChild(hintCenter("Tra cứu thẻ mới ở trên.")); }); body.appendChild(back);
     var loc = cd.ja || cd.ae || cd.en || {};
-    body.appendChild(el("h2", null, loc.name || "Thẻ OCG"));
+    // Layout detail-top có ảnh
+    var top = el("div", "detail-top");
+    var mainImg = el("img"); mainImg.id = "detailImg"; mainImg.alt = loc.name || "OCG";
+    // Thử lấy ảnh từ bản in đầu tiên qua TCG Republic (sẽ cập nhật sau)
+    mainImg.src = ""; mainImg.style.visibility = "hidden";
+    mainImg.addEventListener("click", function () { if (this.src && this.style.visibility !== "hidden") openLightbox(this.getAttribute("data-full") || this.src, this.alt); });
+    var info = el("div", "detail-info");
+    info.appendChild(el("h2", null, loc.name || "Thẻ OCG"));
     var sl = el("div", "stat-line");
     if (cd.ja && cd.ja.name) addStat(sl, "Tên Nhật", cd.ja.name);
     if (loc.atk != null) addStat(sl, "ATK", loc.atk); if (loc.def != null) addStat(sl, "DEF", loc.def); if (loc.level != null) addStat(sl, "Level", loc.level);
-    if (loc.attribute) addStat(sl, "Hệ", loc.attribute); body.appendChild(sl);
-    if (loc.effectText) body.appendChild(el("div", "desc", loc.effectText));
-    body.appendChild(el("p", "note", "Thẻ này chưa có bản TCG trong dữ liệu giá — có thể thêm vào bộ sưu tập thủ công (giá 0)."));
+    if (loc.attribute) addStat(sl, "Hệ", loc.attribute);
+    info.appendChild(sl);
+    if (loc.effectText) info.appendChild(el("div", "desc", loc.effectText));
+    top.appendChild(mainImg); top.appendChild(info); body.appendChild(top);
+    body.appendChild(el("p", "note", "Thẻ này chưa có bản TCG — tra foil/giá từ TCG Republic."));
     var prints = (cd.ja && cd.ja.prints) || [];
     if (prints.length) {
       body.appendChild(el("div", "sec-title", "Bản in tiếng Nhật (" + prints.length + ")"));
-      var list = el("div", "sets");
+      var listWrap = el("div", "sets");
+      // Hiển thị placeholder trước
       prints.slice(0, 30).forEach(function (p) {
-        var row = el("div", "set-row"); var left = el("div"); var sc = el("div", "sc"); sc.appendChild(withMono(p.code)); left.appendChild(sc); if (p.date) left.appendChild(el("div", "sn", p.date));
-        var price = el("div", "price tnum", "—");
+        var row = el("div", "set-row foil-row"); row.setAttribute("data-code", p.code);
+        var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(p.code)); left.appendChild(sc); if (p.date) left.appendChild(el("div", "sn", p.date));
+        var price = el("div", "price tnum", '<span class="spin"></span>');
         var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
         add.addEventListener("click", function () { openAddSheet({ id: 0, name: loc.name || "OCG", card_images: [] }, { set_code: p.code, set_name: "", set_rarity: "", set_price: 0 }, 0); });
-        row.appendChild(left); row.appendChild(price); row.appendChild(add); list.appendChild(row);
+        row.appendChild(left); row.appendChild(price); row.appendChild(add); listWrap.appendChild(row);
       });
-      body.appendChild(list);
+      body.appendChild(listWrap);
+      // Tra foil/giá TCG Republic cho từng mã (giới hạn 10 mã để không quá chậm)
+      var codesToCheck = prints.slice(0, 10);
+      var imgSet = false;
+      codesToCheck.forEach(function (p) {
+        tcgRepublicSearch(p.code).then(function (repMap) {
+          if (!repMap || !Object.keys(repMap).length) {
+            // Cập nhật giá thành "—"
+            var rows = listWrap.querySelectorAll('[data-code="' + p.code + '"]');
+            rows.forEach(function (r) { var pd = r.querySelector(".price"); if (pd) pd.textContent = "—"; });
+            return;
+          }
+          // Có foil data: thay thế row bằng foil rows chi tiết
+          var oldRows = listWrap.querySelectorAll('[data-code="' + p.code + '"]');
+          var anchor = oldRows.length ? oldRows[0] : null;
+          Object.keys(repMap).forEach(function (rk) {
+            var ri = repMap[rk];
+            var row = el("div", "set-row match foil-row");
+            if (ri.thumb) {
+              var timg = el("img", "foil-thumb"); timg.src = ri.thumb; timg.alt = ri.label || rk; imgFade(timg);
+              timg.title = "Bấm để xem ảnh foil";
+              var foilBig = ri.thumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
+              timg.addEventListener("click", (function (big, rar) { return function () {
+                if (mainImg) { mainImg.src = big; mainImg.setAttribute("data-full", big); mainImg.alt = rar; mainImg.style.visibility = "visible"; }
+                openLightbox(big, rar);
+              }; })(foilBig, ri.label || rk));
+              row.appendChild(timg);
+              // Cập nhật ảnh chính với foil đầu tiên
+              if (!imgSet) {
+                imgSet = true;
+                mainImg.src = foilBig; mainImg.setAttribute("data-full", foilBig); mainImg.style.visibility = "visible";
+                mainImg.onerror = function () { this.style.visibility = "hidden"; };
+              }
+            }
+            var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(p.code)); if (ri.label) sc.appendChild(rarChip(ri.label));
+            left.appendChild(sc); if (p.date) left.appendChild(el("div", "sn", p.date));
+            var priceDiv = el("div", "price tnum");
+            if (ri.price > 0) {
+              var pa = el("a", "price-link"); pa.href = ri.url; pa.target = "_blank"; pa.rel = "noopener noreferrer";
+              pa.textContent = "$" + ri.price.toFixed(2); pa.title = "Xem trên TCG Republic";
+              priceDiv.appendChild(pa);
+            } else if (ri.url) {
+              var pa2 = el("a", "price-link muted"); pa2.href = ri.url; pa2.target = "_blank"; pa2.rel = "noopener noreferrer";
+              pa2.textContent = "Xem giá"; priceDiv.appendChild(pa2);
+            } else { priceDiv.textContent = "—"; }
+            var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
+            add.addEventListener("click", (function (rInfo) { return function () { openAddSheet({ id: 0, name: loc.name || "OCG", card_images: [] }, { set_code: p.code, set_name: "", set_rarity: rInfo.label || rk, set_price: rInfo.price || 0 }, 0, rInfo.thumb || null); }; })(ri));
+            row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add);
+            if (anchor) listWrap.insertBefore(row, anchor); else listWrap.appendChild(row);
+          });
+          // Xóa row placeholder cũ
+          oldRows.forEach(function (r) { r.remove(); });
+        }).catch(function () {
+          var rows = listWrap.querySelectorAll('[data-code="' + p.code + '"]');
+          rows.forEach(function (r) { var pd = r.querySelector(".price"); if (pd) pd.textContent = "—"; });
+        });
+      });
+      // Mã còn lại (> 10): bỏ spinner
+      prints.slice(10).forEach(function (p) {
+        var rows = listWrap.querySelectorAll('[data-code="' + p.code + '"]');
+        rows.forEach(function (r) { var pd = r.querySelector(".price"); if (pd) pd.textContent = "—"; });
+      });
     }
     window.scrollTo(0, 0);
   }
