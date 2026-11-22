@@ -12,6 +12,8 @@
   var SETINFO = "https://db.ygoprodeck.com/api/v7/cardsetsinfo.php";
   var IMG = "https://images.ygoprodeck.com/images/cards_small/";
   var IMG_FULL = "https://images.ygoprodeck.com/images/cards/";
+  var TCGP_IMG = "https://product-images.tcgplayer.com/fit-in/437x437/";
+  var TCGP_THUMB = "https://tcgplayer-cdn.tcgplayer.com/product/";
   var YGORES = "https://db.ygoresources.com/data";
   var JA_IDX = YGORES + "/idx/card/name/ja";
   var YUGI = "https://yugipedia.com/api.php";
@@ -1251,7 +1253,7 @@
             return pa - pb;
           });
           elist.innerHTML = "";
-          // Cập nhật ảnh chính thành ảnh foil đầu tiên có thumbnail
+          // Cập nhật ảnh chính: TCG Republic foil > TCGPlayer product > YGOPRODeck
           var mainImg = $("detailImg");
           var firstFoilThumb = null;
           allFoils.forEach(function (f) { if (!firstFoilThumb && f.rep && f.rep.thumb) firstFoilThumb = f.rep.thumb; });
@@ -1259,19 +1261,37 @@
             var bigUrl = firstFoilThumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
             mainImg.src = bigUrl; mainImg.setAttribute("data-full", bigUrl);
             mainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+          } else if (mainImg && !firstFoilThumb) {
+            // Không có ảnh TCG Republic → dùng ảnh TCGPlayer product
+            var firstTcgId = null;
+            allFoils.forEach(function (f) { if (!firstTcgId && f.tcg && f.tcg.id) firstTcgId = f.tcg.id; });
+            if (firstTcgId) {
+              var tcgBig = TCGP_IMG + firstTcgId + ".jpg";
+              mainImg.src = tcgBig; mainImg.setAttribute("data-full", tcgBig);
+              mainImg.onerror = function () { this.src = IMG_FULL + imgId + ".jpg"; this.onerror = function () { this.src = IMG + imgId + ".jpg"; }; };
+            }
           }
           allFoils.forEach(function (f) {
             var row = el("div", "set-row match foil-row");
+            // Thumbnail: TCG Republic foil photo > TCGPlayer product image
             if (f.rep && f.rep.thumb) {
               var timg = el("img", "foil-thumb"); timg.src = f.rep.thumb; timg.alt = f.rarity;
               timg.title = "Bấm để xem ảnh foil"; imgFade(timg);
               var foilBig = f.rep.thumb.replace(".l2_thumbnail.jpg", "").replace("_thumbnail", "");
               timg.addEventListener("click", (function (big, rar) { return function () {
-                // Đổi ảnh chính thành ảnh foil này
                 if (mainImg) { mainImg.src = big; mainImg.setAttribute("data-full", big); mainImg.alt = rar; }
                 openLightbox(big, rar);
               }; })(foilBig, f.rarity));
               row.appendChild(timg);
+            } else if (f.tcg && f.tcg.id) {
+              var timg2 = el("img", "foil-thumb"); timg2.src = TCGP_THUMB + f.tcg.id + "_200w.jpg"; timg2.alt = f.rarity;
+              timg2.title = "Ảnh từ TCGPlayer"; imgFade(timg2);
+              var tcgBig2 = TCGP_IMG + f.tcg.id + ".jpg";
+              timg2.addEventListener("click", (function (big, rar) { return function () {
+                if (mainImg) { mainImg.src = big; mainImg.setAttribute("data-full", big); mainImg.alt = rar; }
+                openLightbox(big, rar);
+              }; })(tcgBig2, f.rarity));
+              row.appendChild(timg2);
             }
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
             left.appendChild(sc); if (f.setName) left.appendChild(el("div", "sn", f.setName));
@@ -1296,7 +1316,8 @@
               priceDiv.appendChild(pa4);
             }
             var add = el("button", "add-btn", "+"); add.title = "Thêm vào bộ sưu tập";
-            add.addEventListener("click", (function (ff, bp) { return function () { openAddSheet(c, { set_code: qcode, set_name: ff.setName, set_rarity: ff.rarity, set_price: bp }, imgId, ff.rep && ff.rep.thumb ? ff.rep.thumb : null); }; })(f, bestPrice));
+            var foilThumb = (f.rep && f.rep.thumb) ? f.rep.thumb : (f.tcg && f.tcg.id) ? (TCGP_THUMB + f.tcg.id + "_200w.jpg") : null;
+            add.addEventListener("click", (function (ff2, bp, ft) { return function () { openAddSheet(c, { set_code: qcode, set_name: ff2.setName, set_rarity: ff2.rarity, set_price: bp }, imgId, ft); }; })(f, bestPrice, foilThumb));
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
           });
           // Thêm art khác từ TCG Republic chưa có trong allFoils (cùng rarity, khác ảnh)

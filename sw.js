@@ -2,7 +2,7 @@
    - Shell (cùng origin): cache-first.
    - API ygoprodeck + ảnh thẻ: network-first, có cache ảnh dự phòng.
    - Thư viện CDN (supabase, tesseract): stale-while-revalidate. */
-var CACHE = "ygo-pwa-v56";
+var CACHE = "ygo-pwa-v59";
 var SHELL = [
   "./", "./index.html", "./app.js", "./config.js", "./manifest.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png"
@@ -47,7 +47,7 @@ self.addEventListener("fetch", function (e) {
   }
 
   // ảnh thẻ: cache-first (ít đổi)
-  if (url.hostname === "images.ygoprodeck.com") {
+  if (url.hostname === "images.ygoprodeck.com" || url.hostname === "product-images.tcgplayer.com" || url.hostname === "tcgplayer-cdn.tcgplayer.com") {
     e.respondWith(caches.open(CACHE).then(function (c) {
       return c.match(req).then(function (hit) { return hit || fetch(req).then(function (res) { if (res.ok) c.put(req, res.clone()); return res; }); });
     })); return;
