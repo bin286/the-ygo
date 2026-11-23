@@ -35,7 +35,7 @@
     var abbr = parts[0];
     if (_tcgPriceCache[abbr]) return Promise.resolve(_tcgPriceCache[abbr]);
     if (_tcgPriceCache[abbr] === null) return Promise.resolve(null);
-    return fetch("./prices/" + abbr.replace("/", "_") + ".json")
+    return fetch("./prices/" + abbr.replace("/", "-") + ".json")
       .then(function (r) { if (!r.ok) throw 0; return r.json(); })
       .then(function (data) { _tcgPriceCache[abbr] = data; return data; })
       .catch(function () { _tcgPriceCache[abbr] = null; return null; });
@@ -1228,33 +1228,39 @@
           if (!hasRep && !hasTcgStatic && !hasTcgP) { enNote.innerHTML = "Bấm <b>Xem giá</b> để tra trên TCGPlayer."; return; }
           if (!hasRep && !hasTcgStatic) { enNote.innerHTML = "Giá tham khảo từ <b>TCGPlayer</b> (USD). Bấm giá để xem chi tiết."; return; }
           // Rebuild: gộp tất cả foil từ TCGPlayer static + YGOPRODeck + TCG Republic
-          var allFoils = []; // [{rarity, tcg:{m,l,id}, rep:{price,url,thumb,label}, setName}]
-          var seenRar = {};
-          // 1) Từ TCGPlayer static
+          var allFoils = []; // [{rarity, tcg:{m,l,id,s}, rep:{price,url,thumb,label}, setName, sub}]
+          var seenKey = {};
+          // sub label map
+          var subLabel = { "1st": "1st Edition", "Unl": "Unlimited", "Ltd": "Limited Ed." };
+          // 1) Từ TCGPlayer static (mỗi printing riêng 1 dòng)
           if (tcgEntries) {
             tcgEntries.forEach(function (te) {
               var rar = te.r || "";
-              seenRar[rar.toUpperCase()] = true;
+              var sub = te.s || "";
+              var key = rar.toUpperCase() + "|" + sub;
+              seenKey[key] = true;
+              if (!sub) seenKey[rar.toUpperCase()] = true; // backward compat
               var rep = matchRepPrice(repMap, rar);
-              if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
-              allFoils.push({ rarity: rar, tcg: te, rep: rep, setName: (exact[0] || {}).set_name || "" });
+              if (rep && rep.label) seenKey[rep.label.toUpperCase()] = true;
+              allFoils.push({ rarity: rar, tcg: te, rep: rep, setName: (exact[0] || {}).set_name || "", sub: sub });
             });
           }
           // 2) Từ YGOPRODeck (bổ sung foil chưa có)
           exact.forEach(function (s) {
-            if (s.set_rarity && !seenRar[(s.set_rarity || "").toUpperCase()]) {
-              seenRar[(s.set_rarity || "").toUpperCase()] = true;
+            var rk = (s.set_rarity || "").toUpperCase();
+            if (s.set_rarity && !seenKey[rk] && !seenKey[rk + "|"]) {
+              seenKey[rk] = true;
               var rep = matchRepPrice(repMap, s.set_rarity);
-              if (rep && rep.label) seenRar[rep.label.toUpperCase()] = true;
-              allFoils.push({ rarity: s.set_rarity, tcg: null, rep: rep, setName: s.set_name || "", ygoPdPrice: Number(s.set_price) || 0 });
+              if (rep && rep.label) seenKey[rep.label.toUpperCase()] = true;
+              allFoils.push({ rarity: s.set_rarity, tcg: null, rep: rep, setName: s.set_name || "", ygoPdPrice: Number(s.set_price) || 0, sub: "" });
             }
           });
           // 3) Từ TCG Republic (bổ sung foil còn thiếu)
           Object.keys(repMap).forEach(function (rk) {
             var lab = repMap[rk].label || rk;
-            if (!seenRar[lab.toUpperCase()]) {
-              seenRar[lab.toUpperCase()] = true;
-              allFoils.push({ rarity: lab, tcg: null, rep: repMap[rk], setName: "" });
+            if (!seenKey[lab.toUpperCase()]) {
+              seenKey[lab.toUpperCase()] = true;
+              allFoils.push({ rarity: lab, tcg: null, rep: repMap[rk], setName: "", sub: "" });
             }
           });
           // Sắp xếp giá từ thấp → cao (foil không có giá xếp cuối)
@@ -1307,6 +1313,7 @@
               row.appendChild(timg2);
             }
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
+            if (f.sub && subLabel[f.sub]) { var stag = el("span", "tag sub-tag", subLabel[f.sub]); stag.style.cssText = "font-size:11px;margin-left:4px;padding:1px 5px;border-radius:4px;background:#e8e0f0;color:#5a3d8a;font-weight:600;"; sc.appendChild(stag); }
             left.appendChild(sc); if (f.setName) left.appendChild(el("div", "sn", f.setName));
             // Giá: TCG Republic → TCGPlayer static → YGOPRODeck → "Xem giá"
             var priceDiv = el("div", "price tnum");
@@ -1363,9 +1370,10 @@
             row.appendChild(left); row.appendChild(priceDiv); row.appendChild(add); elist.appendChild(row);
           });
           var totalCount = allFoils.length + extraArts.length;
-          enTitle.textContent = totalCount > 1 ? ("Mã " + qcode + " — " + totalCount + " loại foil/art, chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
+          var hasSub = allFoils.some(function (f) { return f.sub; });
+          enTitle.textContent = totalCount > 1 ? ("Mã " + qcode + " — " + totalCount + " " + (hasSub ? "phiên bản" : "loại foil/art") + ", chọn đúng loại bạn có") : ("Mã " + qcode + " — bấm + để thêm");
           var hasRepPrice = Object.keys(repMap).some(function (k) { return repMap[k].price > 0; });
-          enNote.innerHTML = hasRepPrice ? "Giá tham khảo từ <b>TCG Republic</b> & <b>TCGPlayer</b> (USD). Sắp xếp thấp → cao." : (hasTcgStatic ? "Giá từ <b>TCGPlayer</b> (USD). Sắp xếp thấp → cao." : "Giá từ <b>TCGPlayer</b>. Bấm giá để xem chi tiết.");
+          enNote.innerHTML = hasRepPrice ? "Giá tham khảo từ <b>TCG Republic</b> & <b>TCGPlayer</b> (USD). Sắp xếp thấp → cao." : (hasTcgStatic ? "Giá từ <b>TCGPlayer</b> (USD)" + (hasSub ? " — hiện đủ phiên bản (1st Ed / Unlimited)." : ". Sắp xếp thấp → cao.") : "Giá từ <b>TCGPlayer</b>. Bấm giá để xem chi tiết.");
         });
       } else {
         // mã Nhật/ngôn ngữ khác: mỗi loại foil của mã đó là 1 dòng riêng để thêm đúng loại bạn có
@@ -1876,7 +1884,7 @@
           // Làm mới cache giá/foil cho các bộ trong bộ sưu tập (stale-while-revalidate trong SW xử lý)
           var abbrs = Object.keys(codes);
           abbrs.slice(0, 10).forEach(function (ab) {
-            fetch("./prices/" + ab.replace("/", "_") + ".json", { cache: "no-cache" }).catch(function () {});
+            fetch("./prices/" + ab.replace("/", "-") + ".json", { cache: "no-cache" }).catch(function () {});
           });
         } catch (e) {}
 
