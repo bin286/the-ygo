@@ -1348,7 +1348,7 @@
             }; })(eaBig, ea.label || ""));
             row.appendChild(timg);
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (ea.label) sc.appendChild(rarChip(ea.label));
-            var artTag = el("span", "tag", "Art khác"); artTag.style.cssText = "font-size:11px;opacity:.7;margin-left:4px;"; sc.appendChild(artTag);
+            sc.appendChild(el("span", "tag art-alt-tag", "Art khác"));
             left.appendChild(sc);
             var priceDiv = el("div", "price tnum");
             if (ea.price > 0) {
@@ -1633,16 +1633,13 @@
         tcgRepublicSearch(code).then(function (repResult) {
           var repMap = repResult.map || {};
           if (!Object.keys(repMap).length) { fetchNext(); return; }
-          var RARITY_ALIAS = { "COMMON": "NORMAL", "NORMAL": "COMMON" };
-          function normR(s) { return s.toUpperCase().replace(/['']/g, "").replace(/\s*RARE\s*/g, " ").replace(/\s+/g, " ").trim(); }
-          function baseR(s) { return normR(s).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim(); }
           function findThumb(rarity) {
             if (!rarity) return null;
-            var rup = rarity.toUpperCase(), brup = baseR(rarity);
+            var rup = rarity.toUpperCase(), brup = baseRarity(rarity);
             for (var k in repMap) { if (k.toUpperCase() === rup && repMap[k].thumb) return repMap[k].thumb; }
-            for (var k2 in repMap) { if (baseR(k2) === brup && repMap[k2].thumb) return repMap[k2].thumb; }
+            for (var k2 in repMap) { if (baseRarity(k2) === brup && repMap[k2].thumb) return repMap[k2].thumb; }
             var alias = RARITY_ALIAS[brup];
-            if (alias) { for (var k3 in repMap) { if (baseR(k3) === alias && repMap[k3].thumb) return repMap[k3].thumb; } }
+            if (alias) { for (var k3 in repMap) { if (baseRarity(k3) === alias && repMap[k3].thumb) return repMap[k3].thumb; } }
             // Fallback: lấy ảnh đầu tiên có thumb
             for (var k4 in repMap) { if (repMap[k4].thumb) return repMap[k4].thumb; }
             return null;
