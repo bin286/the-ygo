@@ -1313,7 +1313,7 @@
               row.appendChild(timg2);
             }
             var left = el("div", "foil-left"); var sc = el("div", "sc"); sc.appendChild(withMono(qcode)); if (f.rarity) sc.appendChild(rarChip(f.rarity));
-            if (f.sub && subLabel[f.sub]) { var stag = el("span", "tag sub-tag", subLabel[f.sub]); stag.style.cssText = "font-size:11px;margin-left:4px;padding:1px 5px;border-radius:4px;background:#e8e0f0;color:#5a3d8a;font-weight:600;"; sc.appendChild(stag); }
+            if (f.sub && subLabel[f.sub]) { var stag = el("span", "tag sub-tag", subLabel[f.sub]); sc.appendChild(stag); }
             left.appendChild(sc); if (f.setName) left.appendChild(el("div", "sn", f.setName));
             // Giá: TCG Republic → TCGPlayer static → YGOPRODeck → "Xem giá"
             var priceDiv = el("div", "price tnum");
@@ -1862,7 +1862,7 @@
           // Chỉ cache tối đa 30 ảnh mỗi lần
           var toCache = imgIds.slice(0, 30);
           if (toCache.length && window.caches) {
-            caches.keys().then(function (ks) { var cn = "ygo-pwa-v54"; for (var ki = 0; ki < ks.length; ki++) { if (ks[ki].indexOf("ygo-pwa-") === 0) { cn = ks[ki]; break; } } return caches.open(cn); }).then(function (cache) {
+            caches.keys().then(function (ks) { var cn = "ygo-pwa-v62"; for (var ki = 0; ki < ks.length; ki++) { if (ks[ki].indexOf("ygo-pwa-") === 0) { cn = ks[ki]; break; } } return caches.open(cn); }).then(function (cache) {
               toCache.forEach(function (id) {
                 var url = IMG + id + ".jpg";
                 cache.match(url).then(function (hit) {
